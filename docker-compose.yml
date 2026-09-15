@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hospital
+      POSTGRES_PASSWORD: hospital
+      POSTGRES_DB: hospital_compare
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hospital -d hospital_compare"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "43180:43180"
+    environment:
+      DATABASE_URL: postgresql://hospital:hospital@postgres:5432/hospital_compare?schema=public
+      INGEST_API_KEY: local-dev-ingest-key
+      NEXT_PUBLIC_APP_URL: http://localhost:43180
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

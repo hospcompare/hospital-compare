@@ -1,0 +1,204 @@
+// Hospital Compare production schema.
+// Agents never write these tables as live UI content.
+// Pipeline: sources → agent candidates → staging (status=staging or staging_* tables)
+//          → validation → approved production rows → Website/API.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RecordStatus {
+  staging
+  approved
+  rejected
+}
+
+enum ModerationStatus {
+  pending
+  approved
+  flagged
+  rejected
+}
+
+enum EmploymentType {
+  travel
+  staff
+  per_diem
+  contract
+  unknown
+}
+
+enum Sentiment {
+  positive
+  mixed
+  negative
+  unknown
+}
+
+enum CandidateType {
+  hospital
+  fact
+  salary
+  col_index
+}
+
+/// Production hospital directory. Primary identifier is CMS CCN (string).
+/// Name variants are not keys — always join/dedupe on `ccn`.
+model Hospital {
+  ccn            String   @id
+  name           String
+  address        String
+  city           String
+  state          String
+  zip            String
+  county         String?
+  healthSystem   String?  @map("health_system")
+  hospitalType   String?  @map("hospital_type")
+  traumaLevel    String?  @map("trauma_level")
+  beds           Int?
+  teachingStatus String?  @map("teaching_status")
+  ownership      String?
+  emr            String?
+  website        String?
+  magnetStatus   String?  @map("magnet_status")
+  isSeed         Boolean  @default(false) @map("is_seed")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  facts    HospitalFact[]
+  salaries Salary[]
+  reviews  Review[]
+
+  @@index([name])
+  @@index([state, city])
+  @@index([zip])
+  @@map("hospitals")
+}
+
+/// Sourced field values with provenance. UI reads approved rows only.
+model HospitalFact {
+  id            String       @id @default(cuid())
+  hospitalCcn   String       @map("hospital_ccn")
+  fieldName     String       @map("field_name")
+  value         String
+  source        String
+  sourceUrl     String?      @map("source_url")
+  effectiveDate DateTime?    @map("effective_date") @db.Date
+  confidence    Float?
+  status        RecordStatus @default(staging)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  hospital Hospital @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+
+  @@index([hospitalCcn, fieldName, status])
+  @@map("hospital_facts")
+}
+
+model Salary {
+  id            String       @id @default(cuid())
+  hospitalCcn   String       @map("hospital_ccn")
+  role          String
+  hourlyMin     Decimal      @map("hourly_min") @db.Decimal(8, 2)
+  hourlyMax     Decimal      @map("hourly_max") @db.Decimal(8, 2)
+  annual        Decimal?     @db.Decimal(12, 2)
+  source        String
+  sourceUrl     String?      @map("source_url")
+  effectiveDate DateTime?    @map("effective_date") @db.Date
+  confidence    Float?
+  status        RecordStatus @default(staging)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  hospital Hospital @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+
+  @@index([hospitalCcn, role, status])
+  @@map("salaries")
+}
+
+/// Cost-of-living index keyed by ZIP or metro code. Sample dataset only in this milestone.
+model ColIndex {
+  id          String   @id @default(cuid())
+  locationKey String   @map("location_key")
+  keyType     String   @map("key_type")
+  indexValue  Decimal  @map("index_value") @db.Decimal(8, 2)
+  datasetName String   @map("dataset_name")
+  asOfDate    DateTime @map("as_of_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([locationKey, datasetName, asOfDate])
+  @@index([locationKey])
+  @@map("col_indexes")
+}
+
+/// Peer reviews. `body` is the original submission and must remain immutable.
+model Review {
+  id               String           @id @default(cuid())
+  hospitalCcn      String           @map("hospital_ccn")
+  /// Original review text. Do not update after insert.
+  body             String
+  employmentType   EmploymentType   @map("employment_type")
+  unit             String?
+  overallScore     Int?             @map("overall_score")
+  staffingScore    Int?             @map("staffing_score")
+  managementScore  Int?             @map("management_score")
+  payScore         Int?             @map("pay_score")
+  wlbScore         Int?             @map("wlb_score")
+  sentiment        Sentiment?
+  moderationStatus ModerationStatus @default(pending) @map("moderation_status")
+  fraudRiskScore   Float?           @map("fraud_risk_score")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  hospital Hospital     @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+  flags    ReviewFlag[]
+
+  @@index([hospitalCcn, moderationStatus])
+  @@map("reviews")
+}
+
+model ReviewFlag {
+  id        String   @id @default(cuid())
+  reviewId  String   @map("review_id")
+  reason    String
+  details   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@map("review_flags")
+}
+
+/// Raw agent payloads before validation. Never served to the public UI.
+model StagingCandidate {
+  id           String         @id @default(cuid())
+  sourceAgent  String         @map("source_agent")
+  candidateType CandidateType @map("candidate_type")
+  payload      Json
+  status       RecordStatus   @default(staging)
+  errorMessage String?        @map("error_message")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  processedAt  DateTime?      @map("processed_at")
+
+  @@index([status, createdAt])
+  @@map("staging_candidates")
+}
+
+/// New hospital identity proposed by agents. Promoted to `hospitals` only after validation.
+model StagingHospital {
+  id        String       @id @default(cuid())
+  ccn       String
+  payload   Json
+  source    String
+  sourceUrl String?      @map("source_url")
+  status    RecordStatus @default(staging)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@index([ccn, status])
+  @@map("staging_hospitals")
+}

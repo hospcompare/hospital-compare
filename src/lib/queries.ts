@@ -1,0 +1,299 @@
+import { prisma } from "@/lib/db";
+import {
+  colAdjustedFrom,
+  formatDate,
+  pickSalaryForRole,
+} from "@/lib/compare";
+import type {
+  ColIndexMetric,
+  HospitalDetail,
+  HospitalSummary,
+  ReviewAggregate,
+  ReviewPublic,
+  SalaryMetric,
+} from "@/lib/contracts";
+
+function toNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hospitalSummary(
+  hospital: {
+    ccn: string;
+    name: string;
+    city: string;
+    state: string;
+    zip: string;
+    county: string | null;
+    hospitalType: string | null;
+    traumaLevel: string | null;
+    beds: number | null;
+    magnetStatus: string | null;
+    teachingStatus: string | null;
+    ownership: string | null;
+    isSeed: boolean;
+  },
+): HospitalSummary {
+  return {
+    ccn: hospital.ccn,
+    name: hospital.name,
+    city: hospital.city,
+    state: hospital.state,
+    zip: hospital.zip,
+    county: hospital.county,
+    hospitalType: hospital.hospitalType,
+    traumaLevel: hospital.traumaLevel,
+    beds: hospital.beds,
+    magnetStatus: hospital.magnetStatus,
+    teachingStatus: hospital.teachingStatus,
+    ownership: hospital.ownership,
+    isSeed: hospital.isSeed,
+  };
+}
+
+export async function searchHospitals(search: string | undefined, limit = 25) {
+  const q = search?.trim();
+  const hospitals = await prisma.hospital.findMany({
+    where: q
+      ? {
+          OR: [
+            { ccn: { contains: q, mode: "insensitive" } },
+            { name: { contains: q, mode: "insensitive" } },
+            { city: { contains: q, mode: "insensitive" } },
+            { state: { equals: q.toUpperCase() } },
+            { zip: { startsWith: q } },
+          ],
+        }
+      : undefined,
+    orderBy: [{ state: "asc" }, { city: "asc" }, { name: "asc" }],
+    take: limit,
+  });
+  return hospitals.map(hospitalSummary);
+}
+
+export async function getHospital(ccn: string) {
+  return prisma.hospital.findUnique({ where: { ccn } });
+}
+
+async function latestColForZip(zip: string): Promise<ColIndexMetric | null> {
+  const row = await prisma.colIndex.findFirst({
+    where: { locationKey: zip },
+    orderBy: { asOfDate: "desc" },
+  });
+  if (!row) return null;
+  return {
+    locationKey: row.locationKey,
+    keyType: row.keyType,
+    indexValue: Number(row.indexValue),
+    datasetName: row.datasetName,
+    asOfDate: formatDate(row.asOfDate) ?? "",
+  };
+}
+
+function mapSalary(row: {
+  role: string;
+  hourlyMin: unknown;
+  hourlyMax: unknown;
+  annual: unknown;
+  source: string;
+  sourceUrl: string | null;
+  effectiveDate: Date | null;
+  confidence: number | null;
+}): SalaryMetric {
+  const hourlyMin = Number(row.hourlyMin);
+  const hourlyMax = Number(row.hourlyMax);
+  return {
+    role: row.role,
+    hourlyMin,
+    hourlyMax,
+    hourlyMid: (hourlyMin + hourlyMax) / 2,
+    annual: toNumber(row.annual),
+    source: row.source,
+    sourceUrl: row.sourceUrl,
+    effectiveDate: formatDate(row.effectiveDate),
+    confidence: row.confidence,
+  };
+}
+
+async function approvedSalaries(ccn: string): Promise<SalaryMetric[]> {
+  const rows = await prisma.salary.findMany({
+    where: { hospitalCcn: ccn, status: "approved" },
+    orderBy: [{ role: "asc" }, { effectiveDate: "desc" }],
+  });
+  return rows.map(mapSalary);
+}
+
+async function reviewAggregates(ccn: string): Promise<ReviewAggregate> {
+  const reviews = await prisma.review.findMany({
+    where: { hospitalCcn: ccn, moderationStatus: "approved" },
+    select: {
+      overallScore: true,
+      staffingScore: true,
+      managementScore: true,
+      payScore: true,
+      wlbScore: true,
+    },
+  });
+
+  const avg = (key: keyof (typeof reviews)[number]) => {
+    const values = reviews
+      .map((row) => row[key])
+      .filter((value): value is number => value != null);
+    if (values.length === 0) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  };
+
+  return {
+    approvedCount: reviews.length,
+    overall: avg("overallScore"),
+    staffing: avg("staffingScore"),
+    management: avg("managementScore"),
+    pay: avg("payScore"),
+    wlb: avg("wlbScore"),
+  };
+}
+
+export async function getHospitalDetail(ccn: string): Promise<HospitalDetail | null> {
+  const hospital = await prisma.hospital.findUnique({ where: { ccn } });
+  if (!hospital) return null;
+
+  const [facts, salaries, col, reviews] = await Promise.all([
+    prisma.hospitalFact.findMany({
+      where: { hospitalCcn: ccn, status: "approved" },
+      orderBy: [{ fieldName: "asc" }, { effectiveDate: "desc" }],
+    }),
+    approvedSalaries(ccn),
+    latestColForZip(hospital.zip),
+    reviewAggregates(ccn),
+  ]);
+
+  return {
+    ...hospitalSummary(hospital),
+    address: hospital.address,
+    healthSystem: hospital.healthSystem,
+    emr: hospital.emr,
+    website: hospital.website,
+    facts: facts.map((fact) => ({
+      fieldName: fact.fieldName,
+      value: fact.value,
+      source: fact.source,
+      sourceUrl: fact.sourceUrl,
+      effectiveDate: formatDate(fact.effectiveDate),
+      confidence: fact.confidence,
+      status: fact.status,
+    })),
+    salaries,
+    col,
+    reviews,
+  };
+}
+
+export async function compareHospitals(ccns: string[], role = "Travel RN") {
+  const unique = [...new Set(ccns.map((ccn) => ccn.trim()).filter(Boolean))];
+  const hospitals = await prisma.hospital.findMany({
+    where: { ccn: { in: unique } },
+  });
+  const byCcn = new Map(hospitals.map((hospital) => [hospital.ccn, hospital]));
+
+  const notes: string[] = [
+    "Pay, COL, and review figures are approved pipeline rows only. Staging agent candidates are never shown here.",
+    "COL-adjusted hourly = mid-point hourly ÷ (COL index / 100). Index 100 is the seed national baseline.",
+    "Seed CCNs (SAMPLE-*) are labeled sample data. This milestone does not scrape live CMS quality scores.",
+  ];
+
+  const compared = [];
+  for (const ccn of unique) {
+    const hospital = byCcn.get(ccn);
+    if (!hospital) {
+      notes.push(`No production hospital row for CCN ${ccn}.`);
+      continue;
+    }
+    const [salaries, col, reviews] = await Promise.all([
+      approvedSalaries(ccn),
+      latestColForZip(hospital.zip),
+      reviewAggregates(ccn),
+    ]);
+    const pay = pickSalaryForRole(salaries, role);
+    compared.push({
+      hospital: hospitalSummary(hospital),
+      pay,
+      col,
+      colAdjustedHourlyMid: colAdjustedFrom(pay, col),
+      reviews,
+    });
+  }
+
+  return { role, notes, hospitals: compared };
+}
+
+export async function listApprovedReviews(ccn: string): Promise<ReviewPublic[]> {
+  const rows = await prisma.review.findMany({
+    where: { hospitalCcn: ccn, moderationStatus: "approved" },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    hospitalCcn: row.hospitalCcn,
+    body: row.body,
+    employmentType: row.employmentType,
+    unit: row.unit,
+    overallScore: row.overallScore,
+    staffingScore: row.staffingScore,
+    managementScore: row.managementScore,
+    payScore: row.payScore,
+    wlbScore: row.wlbScore,
+    sentiment: row.sentiment,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+export async function submitReview(input: {
+  hospitalCcn: string;
+  body: string;
+  employmentType: ReviewPublic["employmentType"];
+  unit?: string | null;
+  overallScore?: number | null;
+  staffingScore?: number | null;
+  managementScore?: number | null;
+  payScore?: number | null;
+  wlbScore?: number | null;
+}) {
+  const hospital = await prisma.hospital.findUnique({
+    where: { ccn: input.hospitalCcn },
+    select: { ccn: true },
+  });
+  if (!hospital) {
+    return { ok: false as const, error: "Unknown hospital CCN" };
+  }
+
+  const review = await prisma.review.create({
+    data: {
+      hospitalCcn: input.hospitalCcn,
+      body: input.body,
+      employmentType: input.employmentType,
+      unit: input.unit?.trim() || null,
+      overallScore: input.overallScore ?? null,
+      staffingScore: input.staffingScore ?? null,
+      managementScore: input.managementScore ?? null,
+      payScore: input.payScore ?? null,
+      wlbScore: input.wlbScore ?? null,
+      sentiment: null,
+      moderationStatus: "pending",
+      fraudRiskScore: null,
+    },
+  });
+
+  // Agent stubs — do not write live UI content from this request.
+  // Review Classifier agent: enqueue { reviewId, body } → suggested sentiment + unit tags.
+  // Moderation agent: enqueue { reviewId, body } → pending|approved|flagged|rejected.
+  // Fraud agent: enqueue { reviewId, metadata } → fraud_risk_score and optional review_flags.
+  void review.id;
+
+  return {
+    ok: true as const,
+    reviewId: review.id,
+    moderationStatus: review.moderationStatus,
+  };
+}
