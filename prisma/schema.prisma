@@ -73,6 +73,7 @@ model Hospital {
   facts    HospitalFact[]
   salaries Salary[]
   reviews  Review[]
+  qualitySnapshots CmsQualitySnapshot[]
 
   @@index([name])
   @@index([state, city])
@@ -201,4 +202,40 @@ model StagingHospital {
 
   @@index([ccn, status])
   @@map("staging_hospitals")
+}
+model CmsQualitySnapshot {
+  id          String @id @default(cuid())
+  hospitalCcn String @map("hospital_ccn")
+
+  overallRating         Int?    @map("overall_rating")
+  overallRatingFootnote String? @map("overall_rating_footnote")
+
+  mortalityMeasureCount Int? @map("mortality_measure_count")
+  mortalityBetter       Int? @map("mortality_better")
+  mortalitySame         Int? @map("mortality_same")
+  mortalityWorse        Int? @map("mortality_worse")
+
+  safetyMeasureCount Int? @map("safety_measure_count")
+  safetyBetter       Int? @map("safety_better")
+  safetySame         Int? @map("safety_same")
+  safetyWorse        Int? @map("safety_worse")
+
+  readmissionMeasureCount Int? @map("readmission_measure_count")
+  readmissionBetter       Int? @map("readmission_better")
+  readmissionSame         Int? @map("readmission_same")
+  readmissionWorse        Int? @map("readmission_worse")
+
+  patientExperienceMeasureCount Int? @map("patient_experience_measure_count")
+
+  sourceDataset String   @map("source_dataset")
+  sourceUrl     String?  @map("source_url")
+  releaseDate   DateTime @map("release_date") @db.Date
+  importedAt    DateTime @default(now()) @map("imported_at")
+
+  hospital Hospital @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+
+  @@unique([hospitalCcn, releaseDate])
+  @@index([hospitalCcn])
+  @@index([overallRating])
+  @@map("cms_quality_snapshots")
 }
