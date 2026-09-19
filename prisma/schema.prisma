@@ -47,6 +47,13 @@ enum CandidateType {
   col_index
 }
 
+enum WorkplaceMetricValueType {
+  number
+  boolean
+  text
+  option
+}
+
 /// Production hospital directory. Primary identifier is CMS CCN (string).
 /// Name variants are not keys — always join/dedupe on `ccn`.
 model Hospital {
@@ -70,9 +77,10 @@ model Hospital {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  facts    HospitalFact[]
-  salaries Salary[]
-  reviews  Review[]
+  facts            HospitalFact[]
+  salaries         Salary[]
+  reviews          Review[]
+  workplaceReports WorkplaceReport[]
   qualitySnapshots CmsQualitySnapshot[]
 
   @@index([name])
@@ -177,14 +185,14 @@ model ReviewFlag {
 
 /// Raw agent payloads before validation. Never served to the public UI.
 model StagingCandidate {
-  id           String         @id @default(cuid())
-  sourceAgent  String         @map("source_agent")
+  id            String        @id @default(cuid())
+  sourceAgent   String        @map("source_agent")
   candidateType CandidateType @map("candidate_type")
-  payload      Json
-  status       RecordStatus   @default(staging)
-  errorMessage String?        @map("error_message")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  processedAt  DateTime?      @map("processed_at")
+  payload       Json
+  status        RecordStatus  @default(staging)
+  errorMessage  String?       @map("error_message")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  processedAt   DateTime?     @map("processed_at")
 
   @@index([status, createdAt])
   @@map("staging_candidates")
@@ -203,6 +211,7 @@ model StagingHospital {
   @@index([ccn, status])
   @@map("staging_hospitals")
 }
+
 model CmsQualitySnapshot {
   id          String @id @default(cuid())
   hospitalCcn String @map("hospital_ccn")
@@ -238,4 +247,114 @@ model CmsQualitySnapshot {
   @@index([hospitalCcn])
   @@index([overallRating])
   @@map("cms_quality_snapshots")
+}
+
+/// Healthcare profession used to scope workplace data.
+/// Stored as records rather than an enum so professions can be added without schema changes.
+model Profession {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  abbreviation String?
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  specialties      Specialty[]
+  workplaceReports WorkplaceReport[]
+
+  @@index([active, sortOrder])
+  @@map("professions")
+}
+
+/// Optional profession-specific specialty or practice area.
+/// A profession may have many specialties, while workplace data may also exist
+/// at the broader profession level without selecting a specialty.
+model Specialty {
+  id           String   @id @default(cuid())
+  professionId String   @map("profession_id")
+  slug         String
+  name         String
+  abbreviation String?
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  profession       Profession        @relation(fields: [professionId], references: [id], onDelete: Cascade)
+  workplaceReports WorkplaceReport[]
+
+  @@unique([professionId, slug])
+  @@index([professionId, active, sortOrder])
+  @@map("specialties")
+}
+
+/// Structured healthcare-worker observations about a workplace.
+/// Reports are scoped to a profession and may optionally be scoped to a specialty.
+/// Subjective ratings and written commentary remain in Review.
+model WorkplaceReport {
+  id               String           @id @default(cuid())
+  hospitalCcn      String           @map("hospital_ccn")
+  professionId     String           @map("profession_id")
+  specialtyId      String?          @map("specialty_id")
+  employmentType   EmploymentType   @map("employment_type")
+  experienceDate   DateTime?        @map("experience_date") @db.Date
+  moderationStatus ModerationStatus @default(pending) @map("moderation_status")
+  fraudRiskScore   Float?           @map("fraud_risk_score")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  hospital     Hospital               @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+  profession   Profession             @relation(fields: [professionId], references: [id])
+  specialty    Specialty?             @relation(fields: [specialtyId], references: [id])
+  observations WorkplaceObservation[]
+
+  @@index([hospitalCcn, moderationStatus])
+  @@index([hospitalCcn, professionId, moderationStatus])
+  @@index([professionId, specialtyId])
+  @@index([experienceDate])
+  @@map("workplace_reports")
+}
+
+/// Catalog of structured workplace measurements.
+/// New metrics can be introduced as records without changing the database schema.
+model WorkplaceMetric {
+  id          String                   @id @default(cuid())
+  slug        String                   @unique
+  label       String
+  description String?
+  category    String
+  valueType   WorkplaceMetricValueType @map("value_type")
+  unit        String?
+  active      Boolean                  @default(true)
+  sortOrder   Int                      @default(0) @map("sort_order")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+
+  observations WorkplaceObservation[]
+
+  @@index([category, active, sortOrder])
+  @@map("workplace_metrics")
+}
+
+/// One structured workplace measurement reported within a WorkplaceReport.
+/// Application validation ensures the populated value matches the metric's valueType.
+model WorkplaceObservation {
+  id           String   @id @default(cuid())
+  reportId     String   @map("report_id")
+  metricId     String   @map("metric_id")
+  numericValue Decimal? @map("numeric_value") @db.Decimal(12, 3)
+  booleanValue Boolean? @map("boolean_value")
+  textValue    String?  @map("text_value")
+  optionValue  String?  @map("option_value")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  report WorkplaceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  metric WorkplaceMetric @relation(fields: [metricId], references: [id])
+
+  @@unique([reportId, metricId])
+  @@index([metricId])
+  @@map("workplace_observations")
 }
