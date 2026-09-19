@@ -124,6 +124,7 @@ export const compareHospitalSchema = z.object({
   col: colIndexSchema.nullable(),
   colAdjustedHourlyMid: z.number().nullable(),
   reviews: reviewAggregateSchema,
+  quality: cmsQualitySnapshotSchema.nullable(),
 });
 
 export const compareResponseSchema = z.object({

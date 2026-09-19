@@ -220,9 +220,9 @@ export async function compareHospitals(ccns: string[], role = "Travel RN") {
   const byCcn = new Map(hospitals.map((hospital) => [hospital.ccn, hospital]));
 
   const notes: string[] = [
-    "Pay, COL, and review figures are approved pipeline rows only. Staging agent candidates are never shown here.",
-    "COL-adjusted hourly = mid-point hourly ÷ (COL index / 100). Index 100 is the seed national baseline.",
-    "Seed CCNs (SAMPLE-*) are labeled sample data. This milestone does not scrape live CMS quality scores.",
+    "CMS quality measures are from the latest imported CMS release available for each hospital.",
+    "Pay, cost-of-living, and review figures appear only from approved records.",
+    "COL-adjusted hourly = mid-point hourly ÷ (COL index / 100).",
   ];
 
   const compared = [];
@@ -232,10 +232,14 @@ export async function compareHospitals(ccns: string[], role = "Travel RN") {
       notes.push(`No production hospital row for CCN ${ccn}.`);
       continue;
     }
-    const [salaries, col, reviews] = await Promise.all([
+    const [salaries, col, reviews, quality] = await Promise.all([
       approvedSalaries(ccn),
       latestColForZip(hospital.zip),
       reviewAggregates(ccn),
+      prisma.cmsQualitySnapshot.findFirst({
+        where: { hospitalCcn: ccn },
+        orderBy: { releaseDate: "desc" },
+      }),
     ]);
     const pay = pickSalaryForRole(salaries, role);
     compared.push({
@@ -244,6 +248,29 @@ export async function compareHospitals(ccns: string[], role = "Travel RN") {
       col,
       colAdjustedHourlyMid: colAdjustedFrom(pay, col),
       reviews,
+      quality: quality
+        ? {
+            overallRating: quality.overallRating,
+            overallRatingFootnote: quality.overallRatingFootnote,
+            mortalityMeasureCount: quality.mortalityMeasureCount,
+            mortalityBetter: quality.mortalityBetter,
+            mortalitySame: quality.mortalitySame,
+            mortalityWorse: quality.mortalityWorse,
+            safetyMeasureCount: quality.safetyMeasureCount,
+            safetyBetter: quality.safetyBetter,
+            safetySame: quality.safetySame,
+            safetyWorse: quality.safetyWorse,
+            readmissionMeasureCount: quality.readmissionMeasureCount,
+            readmissionBetter: quality.readmissionBetter,
+            readmissionSame: quality.readmissionSame,
+            readmissionWorse: quality.readmissionWorse,
+            patientExperienceMeasureCount:
+              quality.patientExperienceMeasureCount,
+            sourceDataset: quality.sourceDataset,
+            sourceUrl: quality.sourceUrl,
+            releaseDate: quality.releaseDate.toISOString().slice(0, 10),
+          }
+        : null,
     });
   }
 

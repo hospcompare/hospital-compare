@@ -3,7 +3,7 @@ import { Activity } from "lucide-react";
 
 const links = [
   { href: "/hospitals", label: "Search hospitals" },
-  { href: "/compare?ccns=SAMPLE-001,SAMPLE-002,SAMPLE-003", label: "Sample compare" },
+  { href: "/compare", label: "Compare hospitals" },
 ];
 
 export function SiteHeader() {
@@ -19,7 +19,7 @@ export function SiteHeader() {
               Hospital Compare
             </span>
             <span className="block text-[11px] uppercase tracking-[0.18em] text-teal-200/80">
-              Workplace, not star ratings
+              Healthcare workplace insights
             </span>
           </span>
         </Link>

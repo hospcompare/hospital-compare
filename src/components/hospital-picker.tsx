@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -134,13 +133,10 @@ export function HospitalPicker({ initialQuery = "" }: { initialQuery?: string })
                       className="mt-1"
                       aria-label={`Select ${hospital.name}`}
                     />
-                    <span className="min-w-0">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-heading text-lg leading-tight">{hospital.name}</span>
-                        {hospital.isSeed ? (
-                          <Badge variant="outline">Seed SAMPLE</Badge>
-                        ) : null}
-                      </span>
+<span className="min-w-0">
+                   <span className="flex flex-wrap items-center gap-2">
+  <span className="font-heading text-lg leading-tight">{hospital.name}</span>
+</span>
                       <span className="mt-1 block text-sm text-muted-foreground">
                         {hospital.city}, {hospital.state} {hospital.zip}
                         {hospital.county ? ` · ${hospital.county} County` : ""} · CCN {hospital.ccn}

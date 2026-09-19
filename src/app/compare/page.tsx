@@ -23,27 +23,21 @@ export default async function ComparePage({
         <p className="text-xs font-semibold tracking-[0.22em] text-teal-800 uppercase">
           Side-by-side
         </p>
-        <h1 className="font-heading text-3xl sm:text-4xl">Compare approved workplace metrics</h1>
+        <h1 className="font-heading text-3xl sm:text-4xl">Compare hospitals</h1>
         <p className="max-w-2xl text-muted-foreground">
-          Pay is the approved {role} band when present. COL-adjusted mid pay appears only when both
-          an approved salary and a COL index exist for that hospital ZIP.
+          Pay is the approved {role} band when present. COL-adjusted mid pay
+          appears only when both an approved salary and a COL index exist for
+          that hospital ZIP.
         </p>
       </div>
 
       {ccns.length === 0 ? (
         <p className="rounded-xl bg-card p-6 text-sm text-muted-foreground ring-1 ring-foreground/10">
-          No CCNs selected.{" "}
+          No hospitals selected.{" "}
           <Link href="/hospitals" className="text-teal-800 hover:underline">
             Search hospitals
           </Link>{" "}
-          and choose two or more, or open the{" "}
-          <Link
-            href="/compare?ccns=SAMPLE-001,SAMPLE-002,SAMPLE-003"
-            className="text-teal-800 hover:underline"
-          >
-            sample compare
-          </Link>
-          .
+          to choose hospitals for comparison.
         </p>
       ) : (
         <CompareTable result={result!} />

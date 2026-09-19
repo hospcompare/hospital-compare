@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -15,7 +14,16 @@ function dash(value: string | number | null | undefined) {
   if (value == null || value === "") return "—";
   return String(value);
 }
+function formatQualityComparison(
+  measureCount: number | null | undefined,
+  better: number | null | undefined,
+  same: number | null | undefined,
+  worse: number | null | undefined,
+) {
+  if (measureCount == null) return "Not Available";
 
+  return `${measureCount} measures · ${better ?? 0} better / ${same ?? 0} same / ${worse ?? 0} worse`;
+}
 export function CompareTable({ result }: { result: CompareResponse }) {
   if (result.hospitals.length === 0) {
     return (
@@ -36,7 +44,57 @@ export function CompareTable({ result }: { result: CompareResponse }) {
     {
       label: "Location",
       values: result.hospitals.map(
-        (row) => `${row.hospital.city}, ${row.hospital.state} ${row.hospital.zip}`,
+        (row) =>
+          `${row.hospital.city}, ${row.hospital.state} ${row.hospital.zip}`,
+      ),
+    },
+    {
+      label: "CMS overall rating",
+      values: result.hospitals.map((row) =>
+        row.quality?.overallRating != null
+          ? `${row.quality.overallRating} / 5`
+          : "Not Available",
+      ),
+    },
+    {
+      label: "CMS mortality",
+      values: result.hospitals.map((row) =>
+        formatQualityComparison(
+          row.quality?.mortalityMeasureCount,
+          row.quality?.mortalityBetter,
+          row.quality?.mortalitySame,
+          row.quality?.mortalityWorse,
+        ),
+      ),
+    },
+    {
+      label: "CMS safety",
+      values: result.hospitals.map((row) =>
+        formatQualityComparison(
+          row.quality?.safetyMeasureCount,
+          row.quality?.safetyBetter,
+          row.quality?.safetySame,
+          row.quality?.safetyWorse,
+        ),
+      ),
+    },
+    {
+      label: "CMS readmissions",
+      values: result.hospitals.map((row) =>
+        formatQualityComparison(
+          row.quality?.readmissionMeasureCount,
+          row.quality?.readmissionBetter,
+          row.quality?.readmissionSame,
+          row.quality?.readmissionWorse,
+        ),
+      ),
+    },
+    {
+      label: "Patient experience measures",
+      values: result.hospitals.map((row) =>
+        row.quality?.patientExperienceMeasureCount != null
+          ? String(row.quality.patientExperienceMeasureCount)
+          : "Not Available",
       ),
     },
     {
@@ -48,14 +106,18 @@ export function CompareTable({ result }: { result: CompareResponse }) {
       ),
     },
     {
-      label: "COL index (seed)",
+      label: "Cost-of-living index",
       values: result.hospitals.map((row) =>
-        row.col ? `${row.col.indexValue.toFixed(1)} (${row.col.datasetName})` : "—",
+        row.col
+          ? `${row.col.indexValue.toFixed(1)} (${row.col.datasetName})`
+          : "—",
       ),
     },
     {
       label: "COL-adjusted mid pay",
-      values: result.hospitals.map((row) => formatHourly(row.colAdjustedHourlyMid)),
+      values: result.hospitals.map((row) =>
+        formatHourly(row.colAdjustedHourlyMid),
+      ),
     },
     {
       label: "Beds",
@@ -91,7 +153,8 @@ export function CompareTable({ result }: { result: CompareResponse }) {
     {
       label: "Pay / WLB scores",
       values: result.hospitals.map(
-        (row) => `${formatScore(row.reviews.pay)} / ${formatScore(row.reviews.wlb)}`,
+        (row) =>
+          `${formatScore(row.reviews.pay)} / ${formatScore(row.reviews.wlb)}`,
       ),
     },
   ];
@@ -101,18 +164,21 @@ export function CompareTable({ result }: { result: CompareResponse }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 z-10 min-w-44 bg-card">Metric</TableHead>
+            <TableHead className="sticky left-0 z-10 min-w-44 bg-card">
+              Metric
+            </TableHead>
             {result.hospitals.map((row) => (
-              <TableHead key={row.hospital.ccn} className="min-w-48 align-bottom">
+              <TableHead
+                key={row.hospital.ccn}
+                className="min-w-48 align-bottom"
+              >
                 <Link
                   href={`/hospitals/${row.hospital.ccn}`}
                   className="font-heading text-base text-foreground hover:underline"
                 >
                   {row.hospital.name}
                 </Link>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {row.hospital.isSeed ? <Badge variant="outline">Seed</Badge> : null}
-                </div>
+               
               </TableHead>
             ))}
           </TableRow>
@@ -120,9 +186,14 @@ export function CompareTable({ result }: { result: CompareResponse }) {
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.label}>
-              <TableCell className="sticky left-0 bg-card font-medium">{row.label}</TableCell>
+              <TableCell className="sticky left-0 bg-card font-medium">
+                {row.label}
+              </TableCell>
               {row.values.map((value, index) => (
-                <TableCell key={`${row.label}-${index}`} className="whitespace-normal">
+                <TableCell
+                  key={`${row.label}-${index}`}
+                  className="whitespace-normal"
+                >
                   {value}
                 </TableCell>
               ))}

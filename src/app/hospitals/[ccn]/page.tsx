@@ -201,7 +201,7 @@ export default async function HospitalDetailPage({
           <CardHeader>
             <CardTitle>COL + reviews</CardTitle>
             <CardDescription>
-              COL is a labeled seed index, not a live BLS feed
+              Cost-of-living data appears when an approved index is available
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">

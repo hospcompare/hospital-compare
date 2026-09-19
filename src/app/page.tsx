@@ -17,13 +17,13 @@ export default async function HomePage() {
               For travel and staff nurses
             </p>
             <h1 className="font-heading text-4xl leading-tight text-balance sm:text-5xl">
-              Compare hospitals on pay, proxies for the floor, and what peers actually wrote.
+              Compare hospitals on quality, workplace factors, pay, and what healthcare workers report.
             </h1>
             <p className="max-w-xl text-lg leading-8 text-muted-foreground">
-              Hospital Compare is a workplace directory keyed by CMS CCN. Cost of living, approved
-              salary bands, Magnet/trauma/teaching flags, and moderated reviews sit behind a
-              staging pipeline. Agents propose candidates. Validators promote rows. This website
-              never lets a model write the live table.
+              Explore hospitals using official CMS facility and quality data, with workplace
+  information designed for travel and staff nurses. Pay, cost of living, staffing,
+  EMR, and peer reviews are added through a validated data pipeline as those
+  datasets become available.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -34,32 +34,33 @@ export default async function HomePage() {
                 <ArrowRight className="size-4" />
               </Link>
               <Link
-                href="/compare?ccns=SAMPLE-001,SAMPLE-002,SAMPLE-003"
-                className="inline-flex h-10 items-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
-              >
-                Open a sample compare
-              </Link>
+  href="/compare"
+  className="inline-flex h-10 items-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+>
+  Compare hospitals
+</Link>
             </div>
           </div>
-          <Card className="bg-card/90">
-            <CardHeader>
-              <CardTitle>What this milestone is</CardTitle>
-              <CardDescription>
-                Schema, APIs, and a thin UI over seed data. Not a live CMS scrape.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm leading-6">
-              <p>
-                Seed hospitals use placeholder CCNs <code>SAMPLE-001</code> through{" "}
-                <code>SAMPLE-006</code>. Pay and COL figures are labeled sample datasets. No CMS
-                star ratings or invented quality scores appear here.
-              </p>
-              <p className="text-muted-foreground">
-                Work-environment proxies in v1: trauma level, Magnet status, teaching status,
-                ownership, beds, EMR, and peer scores for staffing, management, pay, and WLB.
-              </p>
-            </CardContent>
-          </Card>
+         <Card className="bg-card/90">
+  <CardHeader>
+    <CardTitle>Built around authoritative hospital data</CardTitle>
+    <CardDescription>
+      A nationwide hospital directory with CMS quality measures and workplace data.
+    </CardDescription>
+  </CardHeader>
+  <CardContent className="space-y-4 text-sm leading-6">
+    <p>
+      Hospitals are identified by CMS Certification Number (CCN). Available CMS
+      quality data includes overall hospital ratings and mortality, safety,
+      readmission, and patient-experience measures.
+    </p>
+    <p className="text-muted-foreground">
+      Workplace information such as trauma level, Magnet status, teaching status,
+      beds, EMR, pay, staffing, management, and work-life balance can be added as
+      validated data becomes available.
+    </p>
+  </CardContent>
+</Card>
         </div>
       </section>
 
@@ -98,14 +99,14 @@ export default async function HomePage() {
 
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
         <div className="mb-4 flex items-end justify-between gap-4">
-          <h2 className="font-heading text-2xl">Seed directory</h2>
+          <h2 className="font-heading text-2xl">Hospital directory</h2>
           <Link href="/hospitals" className="text-sm text-teal-800 hover:underline">
             Browse all
           </Link>
         </div>
         {hospitals.length === 0 ? (
           <p className="rounded-xl bg-card p-6 text-sm text-muted-foreground ring-1 ring-foreground/10">
-            No hospitals in production yet. Run migrations and seed (see README).
+           Hospital data is currently unavailable.
           </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

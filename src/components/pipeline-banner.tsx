@@ -8,8 +8,8 @@ export function PipelineBanner({ compact = false }: { compact?: boolean }) {
         <p className="text-sm leading-6">
           <span className="font-semibold">Data under construction.</span>{" "}
           {compact
-            ? "Figures come from approved validation-pipeline rows, not live CMS scrapes. Agents never write this page."
-            : "Every hospital, salary, COL index, and review on this site is served from PostgreSQL production tables after a validation step. Agent candidates land in staging and stay invisible until approved. This milestone uses labeled SAMPLE-* CCNs — not a live CMS quality scrape."}
+            ? "Hospital and CMS quality data come from validated source records. Other workplace metrics appear only after validation and approval."
+            : "Hospital identity and CMS quality data are sourced from official CMS datasets. Pay, cost-of-living, and workplace review data appear only after validation and approval. Staging candidates remain hidden until approved."}
         </p>
       </div>
     </div>
