@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ReviewForm } from "@/components/review-form";
 import { getHospitalDetail, listApprovedReviews } from "@/lib/queries";
 import { formatHourly, formatScore } from "@/lib/compare";
@@ -36,8 +42,9 @@ export default async function HospitalDetailPage({
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">CCN {hospital.ccn}</Badge>
-          {hospital.isSeed ? <Badge variant="outline">Seed sample</Badge> : null}
-          {hospital.magnetStatus ? <Badge>{hospital.magnetStatus}</Badge> : null}
+          {hospital.magnetStatus ? (
+            <Badge>{hospital.magnetStatus}</Badge>
+          ) : null}
         </div>
         <h1 className="font-heading text-3xl sm:text-4xl">{hospital.name}</h1>
         <p className="text-muted-foreground">
@@ -46,19 +53,110 @@ export default async function HospitalDetailPage({
         </p>
         <p>
           <Link
-            href={`/compare?ccns=${hospital.ccn},SAMPLE-001,SAMPLE-002`}
+            href={`/compare?ccns=${hospital.ccn}`}
             className="text-sm text-teal-800 hover:underline"
           >
-            Compare with seed peers
+            Add to comparison
           </Link>
         </p>
       </div>
+      {hospital.quality ? (
+        <section className="space-y-4">
+          <div>
+            <h2 className="font-heading text-2xl">CMS quality</h2>
+            <p className="text-sm text-muted-foreground">
+              Hospital quality measures from {hospital.quality.sourceDataset},
+              released {hospital.quality.releaseDate}.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Overall rating</CardTitle>
+                <CardDescription>
+                  CMS hospital overall star rating
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {hospital.quality.overallRating !== null ? (
+                  <div className="space-y-2">
+                    <p className="text-3xl font-semibold">
+                      {hospital.quality.overallRating} / 5
+                    </p>
+                    <p
+                      className="text-lg"
+                      aria-label={`${hospital.quality.overallRating} out of 5 stars`}
+                    >
+                      {"★".repeat(hospital.quality.overallRating)}
+                      {"☆".repeat(5 - hospital.quality.overallRating)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="font-medium">Not Available</p>
+                    {hospital.quality.overallRatingFootnote ? (
+                      <p className="text-xs text-muted-foreground">
+                        CMS footnote {hospital.quality.overallRatingFootnote}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <QualityCard
+              title="Mortality"
+              measureCount={hospital.quality.mortalityMeasureCount}
+              better={hospital.quality.mortalityBetter}
+              same={hospital.quality.mortalitySame}
+              worse={hospital.quality.mortalityWorse}
+            />
+
+            <QualityCard
+              title="Safety"
+              measureCount={hospital.quality.safetyMeasureCount}
+              better={hospital.quality.safetyBetter}
+              same={hospital.quality.safetySame}
+              worse={hospital.quality.safetyWorse}
+            />
+
+            <QualityCard
+              title="Readmissions"
+              measureCount={hospital.quality.readmissionMeasureCount}
+              better={hospital.quality.readmissionBetter}
+              same={hospital.quality.readmissionSame}
+              worse={hospital.quality.readmissionWorse}
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Patient experience measures reported:{" "}
+            {hospital.quality.patientExperienceMeasureCount ?? "Not Available"}.
+            Comparisons indicate how CMS measures compare with the national
+            value; they are not additional star ratings.
+          </p>
+        </section>
+      ) : (
+        <section>
+          <Card>
+            <CardHeader>
+              <CardTitle>CMS quality</CardTitle>
+              <CardDescription>
+                CMS quality data is not available for this hospital.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </section>
+      )}
 
       <section className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Workplace proxies</CardTitle>
-            <CardDescription>Production hospital row — not CMS quality scores</CardDescription>
+            <CardDescription>
+              Hospital characteristics and workplace information
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Type" value={hospital.hospitalType} />
@@ -74,17 +172,22 @@ export default async function HospitalDetailPage({
         <Card>
           <CardHeader>
             <CardTitle>Approved pay</CardTitle>
-            <CardDescription>Staging salary candidates are omitted</CardDescription>
+            <CardDescription>
+              Staging salary candidates are omitted
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {hospital.salaries.length === 0 ? (
-              <p className="text-muted-foreground">No approved salary rows yet.</p>
+              <p className="text-muted-foreground">
+                No approved salary rows yet.
+              </p>
             ) : (
               hospital.salaries.map((salary) => (
                 <div key={`${salary.role}-${salary.effectiveDate}`}>
                   <p className="font-medium">{salary.role}</p>
                   <p>
-                    {formatHourly(salary.hourlyMin)} – {formatHourly(salary.hourlyMax)}
+                    {formatHourly(salary.hourlyMin)} –{" "}
+                    {formatHourly(salary.hourlyMax)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {salary.source} · confidence {salary.confidence ?? "n/a"}
@@ -97,7 +200,9 @@ export default async function HospitalDetailPage({
         <Card>
           <CardHeader>
             <CardTitle>COL + reviews</CardTitle>
-            <CardDescription>COL is a labeled seed index, not a live BLS feed</CardDescription>
+            <CardDescription>
+              COL is a labeled seed index, not a live BLS feed
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row
@@ -108,10 +213,22 @@ export default async function HospitalDetailPage({
                   : null
               }
             />
-            <Row label="Approved reviews" value={String(hospital.reviews.approvedCount)} />
-            <Row label="Overall" value={formatScore(hospital.reviews.overall)} />
-            <Row label="Staffing" value={formatScore(hospital.reviews.staffing)} />
-            <Row label="Management" value={formatScore(hospital.reviews.management)} />
+            <Row
+              label="Approved reviews"
+              value={String(hospital.reviews.approvedCount)}
+            />
+            <Row
+              label="Overall"
+              value={formatScore(hospital.reviews.overall)}
+            />
+            <Row
+              label="Staffing"
+              value={formatScore(hospital.reviews.staffing)}
+            />
+            <Row
+              label="Management"
+              value={formatScore(hospital.reviews.management)}
+            />
             <Row label="Pay score" value={formatScore(hospital.reviews.pay)} />
             <Row label="WLB" value={formatScore(hospital.reviews.wlb)} />
           </CardContent>
@@ -123,7 +240,8 @@ export default async function HospitalDetailPage({
           <h2 className="font-heading text-2xl">Approved reviews</h2>
           {reviews.length === 0 ? (
             <p className="rounded-xl bg-card p-6 text-sm text-muted-foreground ring-1 ring-foreground/10">
-              No approved reviews yet. Pending submissions stay hidden until moderation.
+              No approved reviews yet. Pending submissions stay hidden until
+              moderation.
             </p>
           ) : (
             <ul className="space-y-3">
@@ -136,11 +254,15 @@ export default async function HospitalDetailPage({
                         {review.unit ? ` · ${review.unit}` : ""}
                       </CardTitle>
                       <CardDescription>
-                        Overall {review.overallScore ?? "—"} · Staffing {review.staffingScore ?? "—"} ·
-                        Pay {review.payScore ?? "—"} · {review.createdAt.slice(0, 10)}
+                        Overall {review.overallScore ?? "—"} · Staffing{" "}
+                        {review.staffingScore ?? "—"} · Pay{" "}
+                        {review.payScore ?? "—"} ·{" "}
+                        {review.createdAt.slice(0, 10)}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="text-sm leading-6">{review.body}</CardContent>
+                    <CardContent className="text-sm leading-6">
+                      {review.body}
+                    </CardContent>
                   </Card>
                 </li>
               ))}
@@ -151,7 +273,8 @@ export default async function HospitalDetailPage({
           <CardHeader>
             <CardTitle>Submit a review</CardTitle>
             <CardDescription>
-              Creates a pending row. Review Classifier / Moderation / Fraud agents are stubbed.
+              Creates a pending row. Review Classifier / Moderation / Fraud
+              agents are stubbed.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -163,7 +286,8 @@ export default async function HospitalDetailPage({
       <section className="space-y-3">
         <h2 className="font-heading text-2xl">Approved sourced facts</h2>
         <p className="text-sm text-muted-foreground">
-          Provenance for production fields. Staging facts never appear on this list.
+          Provenance for production fields. Staging facts never appear on this
+          list.
         </p>
         <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
           <table className="w-full text-sm">
@@ -178,7 +302,10 @@ export default async function HospitalDetailPage({
             </thead>
             <tbody>
               {hospital.facts.map((fact) => (
-                <tr key={`${fact.fieldName}-${fact.effectiveDate}-${fact.value}`} className="border-b">
+                <tr
+                  key={`${fact.fieldName}-${fact.effectiveDate}-${fact.value}`}
+                  className="border-b"
+                >
                   <td className="p-3 font-medium">{fact.fieldName}</td>
                   <td className="p-3">{fact.value}</td>
                   <td className="p-3">{fact.source}</td>
@@ -191,6 +318,50 @@ export default async function HospitalDetailPage({
         </div>
       </section>
     </div>
+  );
+}
+
+function QualityCard({
+  title,
+  measureCount,
+  better,
+  same,
+  worse,
+}: {
+  title: string;
+  measureCount: number | null;
+  better: number | null;
+  same: number | null;
+  worse: number | null;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>
+          {measureCount !== null
+            ? `${measureCount} CMS measures`
+            : "CMS measures not available"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        {measureCount !== null ? (
+          <>
+            <Row
+              label="Better than national"
+              value={better?.toString() ?? null}
+            />
+            <Row label="Same as national" value={same?.toString() ?? null} />
+            <Row
+              label="Worse than national"
+              value={worse?.toString() ?? null}
+            />
+          </>
+        ) : (
+          <p className="text-muted-foreground">Not Available</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

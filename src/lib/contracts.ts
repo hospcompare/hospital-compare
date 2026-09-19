@@ -75,6 +75,31 @@ export const reviewAggregateSchema = z.object({
   pay: z.number().nullable(),
   wlb: z.number().nullable(),
 });
+export const cmsQualitySnapshotSchema = z.object({
+  overallRating: z.number().int().min(1).max(5).nullable(),
+  overallRatingFootnote: z.string().nullable(),
+
+  mortalityMeasureCount: z.number().int().nullable(),
+  mortalityBetter: z.number().int().nullable(),
+  mortalitySame: z.number().int().nullable(),
+  mortalityWorse: z.number().int().nullable(),
+
+  safetyMeasureCount: z.number().int().nullable(),
+  safetyBetter: z.number().int().nullable(),
+  safetySame: z.number().int().nullable(),
+  safetyWorse: z.number().int().nullable(),
+
+  readmissionMeasureCount: z.number().int().nullable(),
+  readmissionBetter: z.number().int().nullable(),
+  readmissionSame: z.number().int().nullable(),
+  readmissionWorse: z.number().int().nullable(),
+
+  patientExperienceMeasureCount: z.number().int().nullable(),
+
+  sourceDataset: z.string(),
+  sourceUrl: z.string().nullable(),
+  releaseDate: z.string(),
+});
 
 export const hospitalDetailSchema = hospitalSummarySchema.extend({
   address: z.string(),
@@ -85,6 +110,7 @@ export const hospitalDetailSchema = hospitalSummarySchema.extend({
   salaries: z.array(salarySchema),
   col: colIndexSchema.nullable(),
   reviews: reviewAggregateSchema,
+  quality: cmsQualitySnapshotSchema.nullable(),
 });
 
 export const compareRequestSchema = z.object({

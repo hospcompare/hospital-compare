@@ -1,9 +1,5 @@
 import { prisma } from "@/lib/db";
-import {
-  colAdjustedFrom,
-  formatDate,
-  pickSalaryForRole,
-} from "@/lib/compare";
+import { colAdjustedFrom, formatDate, pickSalaryForRole } from "@/lib/compare";
 import type {
   ColIndexMetric,
   HospitalDetail,
@@ -19,23 +15,21 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function hospitalSummary(
-  hospital: {
-    ccn: string;
-    name: string;
-    city: string;
-    state: string;
-    zip: string;
-    county: string | null;
-    hospitalType: string | null;
-    traumaLevel: string | null;
-    beds: number | null;
-    magnetStatus: string | null;
-    teachingStatus: string | null;
-    ownership: string | null;
-    isSeed: boolean;
-  },
-): HospitalSummary {
+function hospitalSummary(hospital: {
+  ccn: string;
+  name: string;
+  city: string;
+  state: string;
+  zip: string;
+  county: string | null;
+  hospitalType: string | null;
+  traumaLevel: string | null;
+  beds: number | null;
+  magnetStatus: string | null;
+  teachingStatus: string | null;
+  ownership: string | null;
+  isSeed: boolean;
+}): HospitalSummary {
   return {
     ccn: hospital.ccn,
     name: hospital.name,
@@ -155,11 +149,13 @@ async function reviewAggregates(ccn: string): Promise<ReviewAggregate> {
   };
 }
 
-export async function getHospitalDetail(ccn: string): Promise<HospitalDetail | null> {
+export async function getHospitalDetail(
+  ccn: string,
+): Promise<HospitalDetail | null> {
   const hospital = await prisma.hospital.findUnique({ where: { ccn } });
   if (!hospital) return null;
 
-  const [facts, salaries, col, reviews] = await Promise.all([
+  const [facts, salaries, col, reviews, quality] = await Promise.all([
     prisma.hospitalFact.findMany({
       where: { hospitalCcn: ccn, status: "approved" },
       orderBy: [{ fieldName: "asc" }, { effectiveDate: "desc" }],
@@ -167,6 +163,10 @@ export async function getHospitalDetail(ccn: string): Promise<HospitalDetail | n
     approvedSalaries(ccn),
     latestColForZip(hospital.zip),
     reviewAggregates(ccn),
+    prisma.cmsQualitySnapshot.findFirst({
+      where: { hospitalCcn: ccn },
+      orderBy: { releaseDate: "desc" },
+    }),
   ]);
 
   return {
@@ -187,6 +187,28 @@ export async function getHospitalDetail(ccn: string): Promise<HospitalDetail | n
     salaries,
     col,
     reviews,
+    quality: quality
+      ? {
+          overallRating: quality.overallRating,
+          overallRatingFootnote: quality.overallRatingFootnote,
+          mortalityMeasureCount: quality.mortalityMeasureCount,
+          mortalityBetter: quality.mortalityBetter,
+          mortalitySame: quality.mortalitySame,
+          mortalityWorse: quality.mortalityWorse,
+          safetyMeasureCount: quality.safetyMeasureCount,
+          safetyBetter: quality.safetyBetter,
+          safetySame: quality.safetySame,
+          safetyWorse: quality.safetyWorse,
+          readmissionMeasureCount: quality.readmissionMeasureCount,
+          readmissionBetter: quality.readmissionBetter,
+          readmissionSame: quality.readmissionSame,
+          readmissionWorse: quality.readmissionWorse,
+          patientExperienceMeasureCount: quality.patientExperienceMeasureCount,
+          sourceDataset: quality.sourceDataset,
+          sourceUrl: quality.sourceUrl,
+          releaseDate: quality.releaseDate.toISOString().slice(0, 10),
+        }
+      : null,
   };
 }
 
@@ -228,7 +250,9 @@ export async function compareHospitals(ccns: string[], role = "Travel RN") {
   return { role, notes, hospitals: compared };
 }
 
-export async function listApprovedReviews(ccn: string): Promise<ReviewPublic[]> {
+export async function listApprovedReviews(
+  ccn: string,
+): Promise<ReviewPublic[]> {
   const rows = await prisma.review.findMany({
     where: { hospitalCcn: ccn, moderationStatus: "approved" },
     orderBy: { createdAt: "desc" },
