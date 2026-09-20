@@ -7,6 +7,8 @@ import type {
   ReviewAggregate,
   ReviewPublic,
   SalaryMetric,
+  WorkplaceAggregate,
+  WorkplaceMetricAggregate,
 } from "@/lib/contracts";
 
 function toNumber(value: unknown): number | null {
@@ -563,5 +565,214 @@ if (
     ok: true as const,
     reportId: report.id,
     moderationStatus: report.moderationStatus,
+  };
+}
+export async function getWorkplaceAggregate({
+  hospitalCcn,
+  professionSlug,
+  specialtySlugs = [],
+}: {
+  hospitalCcn: string;
+  professionSlug: string;
+  specialtySlugs?: string[];
+}): Promise<WorkplaceAggregate | null> {
+  const hospital = await prisma.hospital.findUnique({
+    where: { ccn: hospitalCcn },
+    select: { ccn: true },
+  });
+
+  if (!hospital) {
+    return null;
+  }
+
+  const profession = await prisma.profession.findUnique({
+    where: { slug: professionSlug },
+    select: {
+      id: true,
+      slug: true,
+      active: true,
+    },
+  });
+
+  if (!profession || !profession.active) {
+    return null;
+  }
+
+  const uniqueSpecialtySlugs = [
+    ...new Set(
+      specialtySlugs
+        .map((slug) => slug.trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  let specialtyIds: string[] = [];
+
+  if (uniqueSpecialtySlugs.length > 0) {
+    const specialties = await prisma.specialty.findMany({
+      where: {
+        professionId: profession.id,
+        slug: { in: uniqueSpecialtySlugs },
+        active: true,
+      },
+      select: {
+        id: true,
+        slug: true,
+      },
+    });
+
+    if (specialties.length !== uniqueSpecialtySlugs.length) {
+      return null;
+    }
+
+    specialtyIds = specialties.map((specialty) => specialty.id);
+  }
+
+  const [metrics, reports] = await Promise.all([
+    prisma.workplaceMetric.findMany({
+      where: {
+        active: true,
+      },
+      orderBy: [
+        { category: "asc" },
+        { sortOrder: "asc" },
+      ],
+      select: {
+        id: true,
+        slug: true,
+        label: true,
+        category: true,
+        valueType: true,
+        unit: true,
+      },
+    }),
+
+    prisma.workplaceReport.findMany({
+      where: {
+        hospitalCcn,
+        professionId: profession.id,
+        moderationStatus: "approved",
+        ...(specialtyIds.length > 0
+          ? {
+              specialtyId: {
+                in: specialtyIds,
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        observations: {
+          select: {
+            metricId: true,
+            numericValue: true,
+            booleanValue: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const observationsByMetric = new Map<
+    string,
+    Array<{
+      numericValue: unknown;
+      booleanValue: boolean | null;
+    }>
+  >();
+
+  for (const report of reports) {
+    for (const observation of report.observations) {
+      const existing =
+        observationsByMetric.get(observation.metricId) ?? [];
+
+      existing.push({
+        numericValue: observation.numericValue,
+        booleanValue: observation.booleanValue,
+      });
+
+      observationsByMetric.set(
+        observation.metricId,
+        existing,
+      );
+    }
+  }
+
+  const aggregatedMetrics: WorkplaceMetricAggregate[] =
+    metrics.map((metric) => {
+      const observations =
+        observationsByMetric.get(metric.id) ?? [];
+
+      const numericValues = observations
+        .map((observation) => toNumber(observation.numericValue))
+        .filter((value): value is number => value !== null);
+
+      const booleanValues = observations
+        .map((observation) => observation.booleanValue)
+        .filter((value): value is boolean => value !== null);
+
+      const numericAverage =
+        numericValues.length > 0
+          ? numericValues.reduce(
+              (sum, value) => sum + value,
+              0,
+            ) / numericValues.length
+          : null;
+
+      const numericMin =
+        numericValues.length > 0
+          ? Math.min(...numericValues)
+          : null;
+
+      const numericMax =
+        numericValues.length > 0
+          ? Math.max(...numericValues)
+          : null;
+
+      const booleanTrueCount = booleanValues.filter(
+        (value) => value,
+      ).length;
+
+      const booleanFalseCount = booleanValues.filter(
+        (value) => !value,
+      ).length;
+
+      const booleanTruePercent =
+        booleanValues.length > 0
+          ? (booleanTrueCount / booleanValues.length) * 100
+          : null;
+
+      const responseCount =
+        metric.valueType === "number"
+          ? numericValues.length
+          : metric.valueType === "boolean"
+            ? booleanValues.length
+            : observations.length;
+
+      return {
+        slug: metric.slug,
+        label: metric.label,
+        category: metric.category,
+        valueType: metric.valueType,
+        unit: metric.unit,
+
+        responseCount,
+
+        numericAverage,
+        numericMin,
+        numericMax,
+
+        booleanTrueCount,
+        booleanFalseCount,
+        booleanTruePercent,
+      };
+    });
+
+  return {
+    hospitalCcn,
+    professionSlug: profession.slug,
+    specialtySlugs: uniqueSpecialtySlugs,
+    approvedReportCount: reports.length,
+    metrics: aggregatedMetrics,
   };
 }

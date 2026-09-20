@@ -251,6 +251,33 @@ export const ingestRequestSchema = z.object({
   sourceAgent: z.string().min(1),
   candidates: z.array(ingestCandidateSchema).min(1).max(200),
 });
+export const workplaceMetricAggregateSchema = z.object({
+  slug: z.string(),
+  label: z.string(),
+  category: z.string(),
+  valueType: z.enum(["number", "boolean", "text", "option"]),
+  unit: z.string().nullable(),
+
+  responseCount: z.number().int().nonnegative(),
+
+  numericAverage: z.number().nullable(),
+  numericMin: z.number().nullable(),
+  numericMax: z.number().nullable(),
+
+  booleanTrueCount: z.number().int().nonnegative(),
+  booleanFalseCount: z.number().int().nonnegative(),
+  booleanTruePercent: z.number().nullable(),
+});
+
+export const workplaceAggregateSchema = z.object({
+  hospitalCcn: z.string(),
+  professionSlug: z.string(),
+  specialtySlugs: z.array(z.string()),
+
+  approvedReportCount: z.number().int().nonnegative(),
+
+  metrics: z.array(workplaceMetricAggregateSchema),
+});
 
 export type HospitalSummary = z.infer<typeof hospitalSummarySchema>;
 export type HospitalDetail = z.infer<typeof hospitalDetailSchema>;
@@ -262,6 +289,6 @@ export type IngestRequest = z.infer<typeof ingestRequestSchema>;
 export type SalaryMetric = z.infer<typeof salarySchema>;
 export type ColIndexMetric = z.infer<typeof colIndexSchema>;
 export type ReviewAggregate = z.infer<typeof reviewAggregateSchema>;
-export type WorkplaceReportSubmit = z.infer<
-  typeof workplaceReportSubmitSchema
->;
+export type WorkplaceReportSubmit = z.infer<typeof workplaceReportSubmitSchema>;
+export type WorkplaceMetricAggregate = z.infer<typeof workplaceMetricAggregateSchema>;
+export type WorkplaceAggregate = z.infer<typeof workplaceAggregateSchema>;
