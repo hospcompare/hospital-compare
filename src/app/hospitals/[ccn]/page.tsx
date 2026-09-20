@@ -11,6 +11,7 @@ import {
 import { ReviewForm } from "@/components/review-form";
 import { getHospitalDetail, listApprovedReviews } from "@/lib/queries";
 import { formatHourly, formatScore } from "@/lib/compare";
+import { WorkplaceReportForm } from "@/components/workplace-report-form";
 
 export const dynamic = "force-dynamic";
 
@@ -269,6 +270,28 @@ export default async function HospitalDetailPage({
             </ul>
           )}
         </div>
+<section className="space-y-4">
+  <div>
+    <h2 className="font-heading text-2xl">Workplace experience</h2>
+    <p className="text-sm text-muted-foreground">
+      Share structured workplace information to help healthcare workers compare
+      hospitals. This initial questionnaire is designed for registered nurses.
+    </p>
+  </div>
+
+  <Card>
+    <CardHeader>
+      <CardTitle>Submit workplace details</CardTitle>
+      <CardDescription>
+        Answer only the questions you know. Submitted data remains pending until
+        moderation and will not affect public hospital comparisons yet.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
+      <WorkplaceReportForm hospitalCcn={hospital.ccn} />
+    </CardContent>
+  </Card>
+</section>
         <Card>
           <CardHeader>
             <CardTitle>Submit a review</CardTitle>

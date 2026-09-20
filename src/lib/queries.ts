@@ -348,3 +348,220 @@ export async function submitReview(input: {
     moderationStatus: review.moderationStatus,
   };
 }
+export async function submitWorkplaceReport(input: {
+  hospitalCcn: string;
+  professionSlug: string;
+  specialtySlug?: string | null;
+  employmentType: "travel" | "staff" | "per_diem" | "contract" | "unknown";
+  experienceMonth?: string | null;
+  observations: Array<
+    | {
+        metricSlug: string;
+        numericValue: number;
+      }
+    | {
+        metricSlug: string;
+        booleanValue: boolean;
+      }
+  >;
+}) {
+  const hospital = await prisma.hospital.findUnique({
+    where: { ccn: input.hospitalCcn },
+    select: { ccn: true },
+  });
+
+  if (!hospital) {
+    return { ok: false as const, error: "Unknown hospital CCN" };
+  }
+
+  const profession = await prisma.profession.findUnique({
+    where: { slug: input.professionSlug },
+    select: { id: true, active: true },
+  });
+
+  if (!profession || !profession.active) {
+    return { ok: false as const, error: "Unknown or inactive profession" };
+  }
+
+  let specialtyId: string | null = null;
+
+  if (input.specialtySlug) {
+    const specialty = await prisma.specialty.findFirst({
+      where: {
+        slug: input.specialtySlug,
+        professionId: profession.id,
+        active: true,
+      },
+      select: { id: true },
+    });
+
+    if (!specialty) {
+      return {
+        ok: false as const,
+        error: "Unknown specialty for selected profession",
+      };
+    }
+
+    specialtyId = specialty.id;
+  }
+
+  const metricSlugs = input.observations.map(
+    (observation) => observation.metricSlug,
+  );
+
+  const metrics = await prisma.workplaceMetric.findMany({
+    where: {
+      slug: { in: metricSlugs },
+      active: true,
+    },
+    select: {
+      id: true,
+      slug: true,
+      valueType: true,
+    },
+  });
+
+  if (metrics.length !== metricSlugs.length) {
+    return {
+      ok: false as const,
+      error: "One or more workplace metrics are unknown or inactive",
+    };
+  }
+
+  const metricsBySlug = new Map(
+    metrics.map((metric) => [metric.slug, metric]),
+  );
+
+  for (const observation of input.observations) {
+    const metric = metricsBySlug.get(observation.metricSlug);
+
+    if (!metric) {
+      return {
+        ok: false as const,
+        error: `Unknown workplace metric: ${observation.metricSlug}`,
+      };
+    }
+
+    if ("numericValue" in observation && metric.valueType !== "number") {
+      return {
+        ok: false as const,
+        error: `Metric ${observation.metricSlug} does not accept a numeric value`,
+      };
+    }
+
+    if ("booleanValue" in observation && metric.valueType !== "boolean") {
+      return {
+        ok: false as const,
+        error: `Metric ${observation.metricSlug} does not accept a boolean value`,
+      };
+    }
+
+    if (
+      observation.metricSlug === "employee-parking-monthly-cost" &&
+      "numericValue" in observation &&
+      observation.numericValue > 1000
+    ) {
+      return {
+        ok: false as const,
+        error: "Monthly parking cost appears invalid",
+      };
+    }
+
+    if (
+      observation.metricSlug === "cafeteria-average-meal-cost" &&
+      "numericValue" in observation &&
+      observation.numericValue > 100
+    ) {
+      return {
+        ok: false as const,
+        error: "Cafeteria meal cost appears invalid",
+      };
+    }
+
+    if (
+      metric.slug.endsWith("satisfaction") ||
+      metric.slug === "management-scheduling-accommodation" ||
+      metric.slug === "staff-welcoming-new-hires-travelers" ||
+      metric.slug === "workplace-security-safety" ||
+      metric.slug === "management-support-availability"
+    ) {
+      if (
+        !("numericValue" in observation) ||
+        observation.numericValue < 1 ||
+        observation.numericValue > 5
+      ) {
+        return {
+          ok: false as const,
+          error: `Metric ${observation.metricSlug} must be rated from 1 to 5`,
+        };
+      }
+    }
+  }
+const typicalAssignment = input.observations.find(
+  (observation) =>
+    observation.metricSlug === "typical-patient-assignment" &&
+    "numericValue" in observation,
+);
+
+const highestAssignment = input.observations.find(
+  (observation) =>
+    observation.metricSlug === "highest-typical-patient-assignment" &&
+    "numericValue" in observation,
+);
+
+if (
+  typicalAssignment &&
+  highestAssignment &&
+  "numericValue" in typicalAssignment &&
+  "numericValue" in highestAssignment &&
+  highestAssignment.numericValue < typicalAssignment.numericValue
+) {
+  return {
+    ok: false as const,
+    error:
+      "Highest patient assignment cannot be lower than the typical patient assignment",
+  };
+}
+  const experienceDate = input.experienceMonth
+    ? new Date(`${input.experienceMonth}-01T00:00:00.000Z`)
+    : null;
+
+  const report = await prisma.$transaction(async (tx) => {
+    const createdReport = await tx.workplaceReport.create({
+      data: {
+        hospitalCcn: input.hospitalCcn,
+        professionId: profession.id,
+        specialtyId,
+        employmentType: input.employmentType,
+        experienceDate,
+        moderationStatus: "pending",
+        fraudRiskScore: null,
+      },
+    });
+
+    await tx.workplaceObservation.createMany({
+      data: input.observations.map((observation) => {
+        const metric = metricsBySlug.get(observation.metricSlug)!;
+
+        return {
+          reportId: createdReport.id,
+          metricId: metric.id,
+          numericValue:
+            "numericValue" in observation ? observation.numericValue : null,
+          booleanValue:
+            "booleanValue" in observation ? observation.booleanValue : null,
+          textValue: null,
+          optionValue: null,
+        };
+      }),
+    });
+
+    return createdReport;
+  });
+
+  return {
+    ok: true as const,
+    reportId: report.id,
+    moderationStatus: report.moderationStatus,
+  };
+}

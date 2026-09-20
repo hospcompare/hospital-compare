@@ -161,7 +161,52 @@ export const reviewSubmitSchema = z.object({
   payScore: scoreField,
   wlbScore: scoreField,
 });
+const workplaceNumericObservationSchema = z.object({
+  metricSlug: z.string().min(1),
+  numericValue: z.number().finite().nonnegative(),
+});
 
+const workplaceBooleanObservationSchema = z.object({
+  metricSlug: z.string().min(1),
+  booleanValue: z.boolean(),
+});
+
+export const workplaceReportSubmitSchema = z
+  .object({
+    hospitalCcn: z.string().min(1),
+    professionSlug: z.string().min(1),
+    specialtySlug: z.string().min(1).optional().nullable(),
+    employmentType: employmentTypeSchema,
+    experienceMonth: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional()
+      .nullable(),
+    observations: z
+      .array(
+        z.union([
+          workplaceNumericObservationSchema,
+          workplaceBooleanObservationSchema,
+        ]),
+      )
+      .min(1)
+      .max(30),
+  })
+  .superRefine((data, ctx) => {
+    const seen = new Set<string>();
+
+    data.observations.forEach((observation, index) => {
+      if (seen.has(observation.metricSlug)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["observations", index, "metricSlug"],
+          message: "Each workplace metric may only be submitted once.",
+        });
+      }
+
+      seen.add(observation.metricSlug);
+    });
+  });
 export const ingestCandidateSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("hospital"),
@@ -217,3 +262,6 @@ export type IngestRequest = z.infer<typeof ingestRequestSchema>;
 export type SalaryMetric = z.infer<typeof salarySchema>;
 export type ColIndexMetric = z.infer<typeof colIndexSchema>;
 export type ReviewAggregate = z.infer<typeof reviewAggregateSchema>;
+export type WorkplaceReportSubmit = z.infer<
+  typeof workplaceReportSubmitSchema
+>;
