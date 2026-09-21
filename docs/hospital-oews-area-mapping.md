@@ -146,9 +146,9 @@ There is no foreign key from `OewsAreaCounty` to `LocalPayBenchmark`. A later re
 model HospitalCountyResolution {
   id               String   @id @default(cuid())
   hospitalCcn      String   @map("hospital_ccn")
-  countyFips       String   @map("county_fips") @db.Char(5)
+  countyFips       String   @map("county_fips")
   countyName       String   @map("county_name")
-  stateFips        String   @map("state_fips") @db.Char(2)
+  stateFips        String   @map("state_fips")
   /// Postal abbreviation, for example WA.
   stateCode        String   @map("state_code") @db.Char(2)
   source           String
@@ -166,7 +166,7 @@ model HospitalCountyResolution {
 
 model OewsAreaCounty {
   id                 String   @id @default(cuid())
-  countyFips         String   @map("county_fips") @db.Char(5)
+  countyFips         String   @map("county_fips")
   geographicAreaCode String   @map("geographic_area_code")
   geographicAreaName String   @map("geographic_area_name")
   /// Published geography type, for example Metropolitan Statistical Area.

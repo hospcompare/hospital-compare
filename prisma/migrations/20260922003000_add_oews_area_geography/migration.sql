@@ -2,9 +2,9 @@
 CREATE TABLE "hospital_county_resolutions" (
     "id" TEXT NOT NULL,
     "hospital_ccn" TEXT NOT NULL,
-    "county_fips" CHAR(5) NOT NULL,
+    "county_fips" TEXT NOT NULL,
     "county_name" TEXT NOT NULL,
-    "state_fips" CHAR(2) NOT NULL,
+    "state_fips" TEXT NOT NULL,
     "state_code" CHAR(2) NOT NULL,
     "source" TEXT NOT NULL,
     "source_dataset" TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE "hospital_county_resolutions" (
 -- CreateTable
 CREATE TABLE "oews_area_counties" (
     "id" TEXT NOT NULL,
-    "county_fips" CHAR(5) NOT NULL,
+    "county_fips" TEXT NOT NULL,
     "geographic_area_code" TEXT NOT NULL,
     "geographic_area_name" TEXT NOT NULL,
     "geographic_level" TEXT NOT NULL,
@@ -47,3 +47,4 @@ CREATE UNIQUE INDEX "oews_area_counties_county_fips_source_source_dataset_key" O
 
 -- AddForeignKey
 ALTER TABLE "hospital_county_resolutions" ADD CONSTRAINT "hospital_county_resolutions_hospital_ccn_fkey" FOREIGN KEY ("hospital_ccn") REFERENCES "hospitals"("ccn") ON DELETE CASCADE ON UPDATE CASCADE;
+
