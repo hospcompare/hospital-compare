@@ -279,6 +279,40 @@ export const workplaceAggregateSchema = z.object({
   metrics: z.array(workplaceMetricAggregateSchema),
 });
 
+export const professionIdentitySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  abbreviation: z.string().nullable(),
+});
+
+export const professionSalarySpecialtySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  abbreviation: z.string().nullable(),
+});
+
+export const professionSalarySchema = z.object({
+  id: z.string(),
+  role: z.string(),
+  hourlyMin: z.number(),
+  hourlyMax: z.number(),
+  hourlyMid: z.number(),
+  annual: z.number().nullable(),
+  source: z.string(),
+  sourceUrl: z.string().nullable(),
+  effectiveDate: z.string().nullable(),
+  confidence: z.number().nullable(),
+  specialty: professionSalarySpecialtySchema.nullable(),
+});
+
+export const hospitalProfessionSalariesSchema = z.object({
+  hospitalCcn: z.string(),
+  profession: professionIdentitySchema,
+  salaries: z.array(professionSalarySchema),
+});
+
 export type HospitalSummary = z.infer<typeof hospitalSummarySchema>;
 export type HospitalDetail = z.infer<typeof hospitalDetailSchema>;
 export type CompareRequest = z.infer<typeof compareRequestSchema>;
@@ -292,3 +326,7 @@ export type ReviewAggregate = z.infer<typeof reviewAggregateSchema>;
 export type WorkplaceReportSubmit = z.infer<typeof workplaceReportSubmitSchema>;
 export type WorkplaceMetricAggregate = z.infer<typeof workplaceMetricAggregateSchema>;
 export type WorkplaceAggregate = z.infer<typeof workplaceAggregateSchema>;
+export type ProfessionIdentity = z.infer<typeof professionIdentitySchema>;
+export type ProfessionSalarySpecialty = z.infer<typeof professionSalarySpecialtySchema>;
+export type ProfessionSalary = z.infer<typeof professionSalarySchema>;
+export type HospitalProfessionSalaries = z.infer<typeof hospitalProfessionSalariesSchema>;
