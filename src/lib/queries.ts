@@ -3,6 +3,7 @@ import { colAdjustedFrom, formatDate, pickSalaryForRole } from "@/lib/compare";
 import type {
   ColIndexMetric,
   HospitalDetail,
+  HospitalProfessionSalaries,
   HospitalSummary,
   ReviewAggregate,
   ReviewPublic,
@@ -774,5 +775,91 @@ export async function getWorkplaceAggregate({
     specialtySlugs: uniqueSpecialtySlugs,
     approvedReportCount: reports.length,
     metrics: aggregatedMetrics,
+  };
+}
+
+/**
+ * Approved salary rows for one hospital and profession.
+ * Returns every matching row, including specialty when one is set.
+ * Does not replace pickSalaryForRole.
+ */
+export async function getApprovedSalariesForHospitalProfession({
+  hospitalCcn,
+  professionSlug,
+}: {
+  hospitalCcn: string;
+  professionSlug: string;
+}): Promise<HospitalProfessionSalaries | null> {
+  const [hospital, profession] = await Promise.all([
+    prisma.hospital.findUnique({
+      where: { ccn: hospitalCcn },
+      select: { ccn: true },
+    }),
+    prisma.profession.findUnique({
+      where: { slug: professionSlug },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        abbreviation: true,
+      },
+    }),
+  ]);
+
+  if (!hospital || !profession) {
+    return null;
+  }
+
+  const rows = await prisma.salary.findMany({
+    where: {
+      hospitalCcn: hospital.ccn,
+      professionId: profession.id,
+      status: "approved",
+    },
+    include: {
+      specialty: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          abbreviation: true,
+        },
+      },
+    },
+    orderBy: [{ role: "asc" }, { effectiveDate: "desc" }, { id: "asc" }],
+  });
+
+  return {
+    hospitalCcn: hospital.ccn,
+    profession: {
+      id: profession.id,
+      slug: profession.slug,
+      name: profession.name,
+      abbreviation: profession.abbreviation,
+    },
+    salaries: rows.map((row) => {
+      const hourlyMin = Number(row.hourlyMin);
+      const hourlyMax = Number(row.hourlyMax);
+      return {
+        id: row.id,
+        role: row.role,
+        hourlyMin,
+        hourlyMax,
+        hourlyMid: (hourlyMin + hourlyMax) / 2,
+        annual: toNumber(row.annual),
+        source: row.source,
+        sourceUrl: row.sourceUrl,
+        effectiveDate: formatDate(row.effectiveDate),
+        confidence: row.confidence,
+        specialty: row.specialty
+          ? {
+              id: row.specialty.id,
+              slug: row.specialty.slug,
+              name: row.specialty.name,
+              abbreviation: row.specialty.abbreviation,
+            }
+          : null,
+      };
+    }),
   };
 }
