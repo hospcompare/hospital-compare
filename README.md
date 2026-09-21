@@ -139,6 +139,24 @@ Required CSV header (order does not matter):
 
 `professionSlug` must match an active profession already stored by `scripts/initialize-workplace-catalog.ts`. Do not include a profession id column. Empty wage cells are null; at least one wage is required. `data/fixtures/local-pay-benchmarks.sample.csv` is a fake fixture for the format, not a wage dataset.
 
+### OEWS May 2025 adapter
+
+`scripts/adapt-oews-may-2025.ts` reads the official BLS OEWS May 2025 metropolitan and nonmetropolitan archive and writes a normalized CSV for the importer above. It does not write to PostgreSQL.
+
+Official source: [oesm25ma.zip](https://www.bls.gov/oes/special-requests/oesm25ma.zip)
+
+- `MSA_M2025_dl.xlsx` — metropolitan statistical areas (`AREA_TYPE` 4)
+- `BOS_M2025_dl.xlsx` — nonmetropolitan areas (`AREA_TYPE` 6)
+
+The first mapped occupation is OEWS `29-1141` Registered Nurses → `professionSlug` `registered-nurse`. Additional professions belong in `scripts/oews/may-2025/constants.ts`. OEWS is profession-level; the adapter does not infer specialties or match hospitals.
+
+```bash
+npx tsx scripts/adapt-oews-may-2025.ts --input /path/to/oesm25ma.zip
+npx tsx scripts/import-local-pay-benchmarks.ts --file data/generated/oews-2025-may-registered-nurse.csv
+```
+
+Generated files under `data/generated/` are gitignored. `*`, `#`, `**`, and blank official wage cells become empty CSV cells. Rows with no published wage are omitted because the importer requires one. Duplicate area identities abort the run.
+
 ## API
 
 All public reads use **approved** production rows. Staging candidates are invisible here.

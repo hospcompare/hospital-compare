@@ -47,3 +47,4 @@ next-env.d.ts
 
 # Downloaded source datasets
 /data/*.csv
+/data/generated/
