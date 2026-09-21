@@ -157,6 +157,20 @@ npx tsx scripts/import-local-pay-benchmarks.ts --file data/generated/oews-2025-m
 
 Generated files under `data/generated/` are gitignored. `*`, `#`, `**`, and blank official wage cells become empty CSV cells. Rows with no published wage are omitted because the importer requires one. Duplicate area identities abort the run.
 
+### Hospital → OEWS area prototype
+
+`scripts/map-hospital-oews-areas.ts` resolves a hospital to one May 2025 OEWS metropolitan or nonmetropolitan area. It is read-only: it does not change `hospitals`, does not write `local_pay_benchmarks`, and does not add a migration.
+
+The join key is county FIPS. Metropolitan benchmark codes are the 5-digit CBSA code. Nonmetropolitan benchmark codes are the 7-digit BLS area code. Research, the mapping chain, and the schema proposal are in `docs/hospital-oews-area-mapping.md`.
+
+```bash
+npx tsx scripts/oews/area-mapping/resolve.test.ts
+npx tsx scripts/map-hospital-oews-areas.ts --hospitals data/fixtures/oews-may-2025/example-hospitals.json
+npx tsx scripts/map-hospital-oews-areas.ts
+```
+
+The last command downloads Census, OMB, ZCTA, and CMS geography files into `data/generated/oews-area-mapping/` and prints coverage for the CMS hospital set.
+
 ## API
 
 All public reads use **approved** production rows. Staging candidates are invisible here.
