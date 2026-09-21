@@ -301,12 +301,12 @@ model Specialty {
   @@map("specialties")
 }
 
-/// Profession-level wage benchmark for one geographic labor-market area.
-/// Source-derived reference data. Not hospital-specific, not specialty-specific,
-/// and not worker-reported or employer-posted pay.
+/// Profession-level wage benchmark for one geographic labor-market area and source release.
+/// Validated source/reference data, like CmsQualitySnapshot. Not hospital-specific,
+/// not specialty-specific, and not worker-reported or employer-posted pay.
 /// RecordStatus is omitted: this is not agent-staged or user-moderated content.
-/// No unique constraint yet. A row's identity (current benchmark vs. one row per
-/// source release) is unresolved and must be reviewed before a key is added.
+/// Releases are preserved as separate rows. effectiveDate is metadata and is not
+/// part of the unique identity.
 model LocalPayBenchmark {
   id           String @id @default(cuid())
   professionId String @map("profession_id")
@@ -323,17 +323,17 @@ model LocalPayBenchmark {
   annualMedian Decimal? @map("annual_median") @db.Decimal(12, 2)
 
   source        String
-  /// Dataset or release identifier from the publisher, when the source provides one.
-  sourceDataset String?   @map("source_dataset")
+  /// Dataset or release identifier. Required so each release has a stable identity.
+  sourceDataset String    @map("source_dataset")
   sourceUrl     String?   @map("source_url")
-  /// Reference period for the wage statistics, when the source provides one.
+  /// Reference period for the wage statistics. Metadata only; not part of uniqueness.
   effectiveDate DateTime? @map("effective_date") @db.Date
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   profession Profession @relation(fields: [professionId], references: [id])
 
-  @@index([professionId, geographicAreaCode, geographicLevel])
+  @@unique([professionId, geographicAreaCode, geographicLevel, source, sourceDataset])
   @@index([source, sourceDataset])
   @@map("local_pay_benchmarks")
 }

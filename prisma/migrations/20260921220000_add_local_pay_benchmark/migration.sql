@@ -10,7 +10,7 @@ CREATE TABLE "local_pay_benchmarks" (
     "annual_mean" DECIMAL(12,2),
     "annual_median" DECIMAL(12,2),
     "source" TEXT NOT NULL,
-    "source_dataset" TEXT,
+    "source_dataset" TEXT NOT NULL,
     "source_url" TEXT,
     "effective_date" DATE,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -20,10 +20,10 @@ CREATE TABLE "local_pay_benchmarks" (
 );
 
 -- CreateIndex
-CREATE INDEX "local_pay_benchmarks_profession_id_geographic_area_code_geo_idx" ON "local_pay_benchmarks"("profession_id", "geographic_area_code", "geographic_level");
+CREATE INDEX "local_pay_benchmarks_source_source_dataset_idx" ON "local_pay_benchmarks"("source", "source_dataset");
 
 -- CreateIndex
-CREATE INDEX "local_pay_benchmarks_source_source_dataset_idx" ON "local_pay_benchmarks"("source", "source_dataset");
+CREATE UNIQUE INDEX "local_pay_benchmarks_profession_id_geographic_area_code_geo_key" ON "local_pay_benchmarks"("profession_id", "geographic_area_code", "geographic_level", "source", "source_dataset");
 
 -- AddForeignKey
 ALTER TABLE "local_pay_benchmarks" ADD CONSTRAINT "local_pay_benchmarks_profession_id_fkey" FOREIGN KEY ("profession_id") REFERENCES "professions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
