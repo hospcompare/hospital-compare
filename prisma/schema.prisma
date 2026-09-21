@@ -77,11 +77,12 @@ model Hospital {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  facts            HospitalFact[]
-  salaries         Salary[]
-  reviews          Review[]
-  workplaceReports WorkplaceReport[]
-  qualitySnapshots CmsQualitySnapshot[]
+  facts             HospitalFact[]
+  salaries          Salary[]
+  reviews           Review[]
+  workplaceReports  WorkplaceReport[]
+  qualitySnapshots  CmsQualitySnapshot[]
+  countyResolutions HospitalCountyResolution[]
 
   @@index([name])
   @@index([state, city])
@@ -336,6 +337,58 @@ model LocalPayBenchmark {
   @@unique([professionId, geographicAreaCode, geographicLevel, source, sourceDataset])
   @@index([source, sourceDataset])
   @@map("local_pay_benchmarks")
+}
+
+/// Resolved county-equivalent identity for one hospital and one geography vintage.
+/// This is the stable join key into OewsAreaCounty. It is not a CBSA code and not
+/// an OEWS area code. RecordStatus is omitted: rows are deterministic reference
+/// geography, not agent-staged or user-moderated content.
+/// source and sourceDataset identify the county authority and vintage
+/// (for example Census Bureau / all-geocodes-v2024), not an OEWS wage release.
+/// A new vintage is a new row. One hospital has one resolution per vintage.
+model HospitalCountyResolution {
+  id               String   @id @default(cuid())
+  hospitalCcn      String   @map("hospital_ccn")
+  countyFips       String   @map("county_fips")
+  countyName       String   @map("county_name")
+  stateFips        String   @map("state_fips")
+  /// Postal abbreviation, for example WA.
+  stateCode        String   @map("state_code") @db.Char(2)
+  source           String
+  sourceDataset    String   @map("source_dataset")
+  resolutionMethod String   @map("resolution_method")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  hospital Hospital @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+
+  @@unique([hospitalCcn, source, sourceDataset])
+  @@index([countyFips])
+  @@map("hospital_county_resolutions")
+}
+
+/// County equivalent to one OEWS metropolitan or nonmetropolitan area for one release.
+/// The May 2025 area-definition workbook maps each county FIPS to exactly one area,
+/// so countyFips + source + sourceDataset is the release identity.
+/// Join to LocalPayBenchmark on geographicAreaCode, geographicLevel, source, and
+/// sourceDataset. There is no foreign key: benchmark rows are profession wages.
+/// RecordStatus is omitted. Later OEWS releases are additional rows, not updates.
+model OewsAreaCounty {
+  id                 String   @id @default(cuid())
+  countyFips         String   @map("county_fips")
+  geographicAreaCode String   @map("geographic_area_code")
+  geographicAreaName String   @map("geographic_area_name")
+  /// Published geography type, for example Metropolitan Statistical Area.
+  geographicLevel    String   @map("geographic_level")
+  source             String
+  sourceDataset      String   @map("source_dataset")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([countyFips, source, sourceDataset])
+  @@index([countyFips, sourceDataset])
+  @@index([geographicAreaCode, geographicLevel, sourceDataset])
+  @@map("oews_area_counties")
 }
 
 /// Structured healthcare-worker observations about a workplace.

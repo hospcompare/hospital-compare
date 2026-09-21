@@ -1,0 +1,138 @@
+[
+  {
+    "ccn": "500039",
+    "name": "ST MICHAEL MEDICAL CENTER",
+    "city": "SILVERDALE",
+    "state": "WA",
+    "zip": "98383",
+    "county": "KITSAP"
+  },
+  {
+    "ccn": "520098",
+    "name": "UNIVERSITY OF WI  HOSPITALS & CLINICS AUTHORITY",
+    "city": "MADISON",
+    "state": "WI",
+    "zip": "53792",
+    "county": "DANE"
+  },
+  {
+    "ccn": "340069",
+    "name": "WAKEMED, RALEIGH CAMPUS",
+    "city": "RALEIGH",
+    "state": "NC",
+    "zip": "27610",
+    "county": "WAKE"
+  },
+  {
+    "ccn": "340173",
+    "name": "WAKEMED, CARY HOSPITAL",
+    "city": "CARY",
+    "state": "NC",
+    "zip": "27518",
+    "county": "WAKE"
+  },
+  {
+    "ccn": "500064",
+    "name": "HARBORVIEW MEDICAL CENTER",
+    "city": "SEATTLE",
+    "state": "WA",
+    "zip": "98104",
+    "county": "KING"
+  },
+  {
+    "ccn": "500072",
+    "name": "OLYMPIC MEDICAL CENTER",
+    "city": "PORT ANGELES",
+    "state": "WA",
+    "zip": "98362",
+    "county": "CLALLAM"
+  },
+  {
+    "ccn": "070002",
+    "name": "ST FRANCIS HOSPITAL & MEDICAL CENTER",
+    "city": "HARTFORD",
+    "state": "CT",
+    "zip": "06105",
+    "county": "HARTFORD"
+  },
+  {
+    "ccn": "070008",
+    "name": "JOHNSON MEMORIAL HOSPITAL",
+    "city": "STAFFORD SPRINGS",
+    "state": "CT",
+    "zip": "06076",
+    "county": "TOLLAND"
+  },
+  {
+    "ccn": "090001",
+    "name": "GEORGE WASHINGTON UNIV HOSPITAL",
+    "city": "WASHINGTON",
+    "state": "DC",
+    "zip": "20037",
+    "county": "THE DISTRICT"
+  },
+  {
+    "ccn": "190020",
+    "name": "LANE REGIONAL MEDICAL CENTER",
+    "city": "ZACHARY",
+    "state": "LA",
+    "zip": "70791",
+    "county": "E. BATON ROUGE"
+  },
+  {
+    "ccn": "140286",
+    "name": "NORTHWESTERN MEDICINE KISHWAUKEE HOSPITAL",
+    "city": "DEKALB",
+    "state": "IL",
+    "zip": "60115",
+    "county": "DE KALB"
+  },
+  {
+    "ccn": "490089",
+    "name": "CARILION FRANKLIN MEMORIAL HOSPITAL",
+    "city": "ROCKY MOUNT",
+    "state": "VA",
+    "zip": "24151",
+    "county": "FRANKLIN"
+  },
+  {
+    "ccn": "490092",
+    "name": "BON SECOURS SOUTHAMPTON MEMORIAL HOSPITAL",
+    "city": "FRANKLIN",
+    "state": "VA",
+    "zip": "23851",
+    "county": "FRANKLIN CITY"
+  },
+  {
+    "ccn": "021301",
+    "name": "PROVIDENCE VALDEZ MEDICAL CENTER",
+    "city": "VALDEZ",
+    "state": "AK",
+    "zip": "99686",
+    "county": "VALDEZ-CORDOVA"
+  },
+  {
+    "ccn": "150002",
+    "name": "METHODIST HOSPITALS INC",
+    "city": "GARY",
+    "state": "IN",
+    "zip": "46402",
+    "county": "LAKE"
+  },
+  {
+    "ccn": "490066",
+    "name": "SENTARA WILLIAMSBURG REGIONAL MEDICAL CENTER",
+    "city": "WILLIAMSBURG",
+    "state": "VA",
+    "zip": "23185",
+    "county": "JAMES CITY"
+  },
+  {
+    "ccn": "650001",
+    "name": "GUAM MEMORIAL  HOSPITAL AUTHORITY",
+    "city": "TAMUNING",
+    "state": "GU",
+    "zip": "96913",
+    "county": "GUAM"
+  }
+]
