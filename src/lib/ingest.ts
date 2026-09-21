@@ -129,14 +129,56 @@ export type IngestSalaryResult =
       issues?: Array<{ path: string; message: string }>;
     };
 
+function calendarParts(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+  };
+}
+
+function sameCalendarDay(
+  date: Date,
+  parts: { year: number; month: number; day: number },
+  utc: boolean,
+) {
+  const year = utc ? date.getUTCFullYear() : date.getFullYear();
+  const month = (utc ? date.getUTCMonth() : date.getMonth()) + 1;
+  const day = utc ? date.getUTCDate() : date.getDate();
+  return year === parts.year && month === parts.month && day === parts.day;
+}
+
 function toEffectiveDate(value: string): Date | null {
+  const parts = calendarParts(value);
+  if (!parts) return null;
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-").map(Number);
-    return new Date(Date.UTC(year, month - 1, day));
+    const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    // Date.UTC maps years 0–99 onto 1900–1999.
+    if (parts.year <= 99) {
+      date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
+    }
+    return sameCalendarDay(date, parts, true) ? date : null;
   }
 
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime())) return null;
+
+  const offset = /([+-])(\d{2}):(\d{2})$/.exec(value);
+  if (offset) {
+    const sign = offset[1] === "+" ? 1 : -1;
+    const minutes = sign * (Number(offset[2]) * 60 + Number(offset[3]));
+    const shifted = new Date(date.getTime() + minutes * 60_000);
+    return sameCalendarDay(shifted, parts, true) ? date : null;
+  }
+
+  if (value.endsWith("Z")) {
+    return sameCalendarDay(date, parts, true) ? date : null;
+  }
+
+  return sameCalendarDay(date, parts, false) ? date : null;
 }
 
 /**
