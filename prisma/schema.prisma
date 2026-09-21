@@ -113,6 +113,8 @@ model Salary {
   id            String       @id @default(cuid())
   hospitalCcn   String       @map("hospital_ccn")
   role          String
+  professionId  String?      @map("profession_id")
+  specialtyId   String?      @map("specialty_id")
   hourlyMin     Decimal      @map("hourly_min") @db.Decimal(8, 2)
   hourlyMax     Decimal      @map("hourly_max") @db.Decimal(8, 2)
   annual        Decimal?     @db.Decimal(12, 2)
@@ -124,9 +126,15 @@ model Salary {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  hospital Hospital @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+  hospital   Hospital    @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+  profession Profession? @relation(fields: [professionId], references: [id], onDelete: SetNull)
+  specialty  Specialty?  @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
 
   @@index([hospitalCcn, role, status])
+  @@index([hospitalCcn, professionId, status])
+  @@index([hospitalCcn, professionId, specialtyId, status])
+  @@index([professionId])
+  @@index([specialtyId])
   @@map("salaries")
 }
 
@@ -263,6 +271,7 @@ model Profession {
 
   specialties      Specialty[]
   workplaceReports WorkplaceReport[]
+  salaries         Salary[]
 
   @@index([active, sortOrder])
   @@map("professions")
@@ -284,6 +293,7 @@ model Specialty {
 
   profession       Profession        @relation(fields: [professionId], references: [id], onDelete: Cascade)
   workplaceReports WorkplaceReport[]
+  salaries         Salary[]
 
   @@unique([professionId, slug])
   @@index([professionId, active, sortOrder])
