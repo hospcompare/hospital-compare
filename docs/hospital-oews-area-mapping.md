@@ -1,6 +1,6 @@
 # Hospital to OEWS area mapping
 
-Read-only prototype. No schema migration, no UI, and no writes to `hospitals` or `local_pay_benchmarks`.
+Read-only prototype. `HospitalCountyResolution` and `OewsAreaCounty` are in the Prisma schema, and the migration SQL is not applied. This script does not populate those tables, change the UI, or write `hospitals` or `local_pay_benchmarks`.
 
 The production join is county FIPS to the BLS May 2025 area-definition workbook. ZIP is a cross-check. City-name similarity is not the method.
 
@@ -130,70 +130,70 @@ A single-county ZCTA agreed with the county-name result whenever both existed. T
 
 County FIPS is required. A later HUD ZIP-to-county file can cross-check the CMS county. It should not replace it when the ZIP is split.
 
-## Proposed schema
+## Schema
 
-Not implemented. Stop here for architecture review.
+Approved and added to `prisma/schema.prisma`. The migration SQL is in `prisma/migrations/20260922003000_add_oews_area_geography/migration.sql`. It has not been applied, and neither table is populated.
 
-Do not add `cbsa_code` or `geographic_area_code` to `hospitals`. The CBSA is not the OEWS area for nonmetropolitan and micropolitan counties. The OEWS area code changes when OMB or BLS redraws areas, so it belongs to a release, not to the hospital.
+`hospitals` has no CBSA column and no OEWS area code. The CBSA is not the OEWS area for nonmetropolitan and micropolitan counties. The OEWS area code changes when OMB or BLS redraws areas, so it belongs on `oews_area_counties` for one release.
 
-Persist the stable county FIPS, with the method that produced it, and persist the OEWS county crosswalk once per release.
+`Hospital` gains only `countyResolutions`. It has no new columns.
+
+The May 2025 area-definition workbook has 3,222 county rows and 3,222 distinct county FIPS codes. Zero counties map to more than one OEWS area in that release, so `countyFips + source + sourceDataset` is the `OewsAreaCounty` identity. `HospitalCountyResolution` is unique on `hospitalCcn + source + sourceDataset`: one current county for a hospital and a county vintage. `source` and `sourceDataset` on the hospital row name the county authority (for example Census Bureau / `all-geocodes-v2024`), not the OEWS wage release.
+
+There is no foreign key from `OewsAreaCounty` to `LocalPayBenchmark`. A later read joins county FIPS, then area code, geographic level, source, and source dataset. `RecordStatus` is not used. A later Census vintage or OEWS release is a new `sourceDataset`, not an update of the old rows.
 
 ```prisma
 model HospitalCountyResolution {
-  hospitalCcn       String   @id @map("hospital_ccn")
-  countyFips        String   @map("county_fips") @db.Char(5)
-  stateFips         String   @map("state_fips") @db.Char(2)
-  censusVintage     String   @map("census_vintage")
-  resolutionMethod  String   @map("resolution_method")
-  cmsCountyName     String?  @map("cms_county_name")
-  cmsCity           String?  @map("cms_city")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  hospitalCcn      String   @map("hospital_ccn")
+  countyFips       String   @map("county_fips") @db.Char(5)
+  countyName       String   @map("county_name")
+  stateFips        String   @map("state_fips") @db.Char(2)
+  /// Postal abbreviation, for example WA.
+  stateCode        String   @map("state_code") @db.Char(2)
+  source           String
+  sourceDataset    String   @map("source_dataset")
+  resolutionMethod String   @map("resolution_method")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   hospital Hospital @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
 
+  @@unique([hospitalCcn, source, sourceDataset])
   @@index([countyFips])
   @@map("hospital_county_resolutions")
 }
 
 model OewsAreaCounty {
-  id                   String @id @default(cuid())
-  source               String
-  sourceDataset        String @map("source_dataset")
-  countyFips           String @map("county_fips") @db.Char(5)
-  countyName           String @map("county_name")
-  geographicAreaCode   String @map("geographic_area_code")
-  geographicAreaName   String @map("geographic_area_name")
-  geographicLevel      String @map("geographic_level")
-  cbsaCode             String? @map("cbsa_code") @db.Char(5)
+  id                 String   @id @default(cuid())
+  countyFips         String   @map("county_fips") @db.Char(5)
+  geographicAreaCode String   @map("geographic_area_code")
+  geographicAreaName String   @map("geographic_area_name")
+  /// Published geography type, for example Metropolitan Statistical Area.
+  geographicLevel    String   @map("geographic_level")
+  source             String
+  sourceDataset      String   @map("source_dataset")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  @@unique([sourceDataset, countyFips])
-  @@index([sourceDataset, geographicAreaCode])
+  @@unique([countyFips, source, sourceDataset])
+  @@index([countyFips, sourceDataset])
+  @@index([geographicAreaCode, geographicLevel, sourceDataset])
   @@map("oews_area_counties")
 }
 ```
-
-`cbsaCode` on `OewsAreaCounty` is only the metropolitan area's CBSA, equal to `geographicAreaCode` for those rows, and null for nonmetropolitan rows. It is not a hospital column.
 
 Later read path, still not built:
 
 ```text
 hospital_county_resolutions.county_fips
   = oews_area_counties.county_fips
-  and oews_area_counties.source_dataset = local_pay_benchmarks.source_dataset
   and oews_area_counties.geographic_area_code = local_pay_benchmarks.geographic_area_code
   and oews_area_counties.geographic_level = local_pay_benchmarks.geographic_level
+  and oews_area_counties.source = local_pay_benchmarks.source
+  and oews_area_counties.source_dataset = local_pay_benchmarks.source_dataset
 ```
 
-For `OEWS-2025-MAY`, load `oews_area_counties` from `area_definitions_m2025.xlsx`. Load `hospital_county_resolutions` from the same resolver this prototype runs, including the 11 unresolved hospitals as absent rows rather than guesses.
+Not done yet: import `area_definitions_m2025.xlsx` into `oews_area_counties`, or write resolver output into `hospital_county_resolutions`. Unresolved hospitals stay absent rather than guessed. Do not backfill `LocalPayBenchmark` and do not render benchmarks on the hospital page.
 
-Optional later denormalization, only after that review: nullable `hospitals.county_fips`. The resolution table remains the provenance record.
-
-### Migration plan, not applied
-
-1. Add `hospital_county_resolutions` and `oews_area_counties` in a new Prisma migration. Do not alter wage, compare, or workplace tables.
-2. Import the May 2025 workbook into `oews_area_counties` with `source = "BLS OEWS"` and `sourceDataset = "OEWS-2025-MAY"`.
-3. Run the resolver in write mode only after review. Upsert one resolution row per mapped hospital. Do not update hospital name or address columns.
-4. Do not backfill `LocalPayBenchmark` and do not render benchmarks on the hospital page in that migration.
-
-No migration file is in this branch.
+`prisma migrate diff` wrote the SQL file. `prisma migrate dev`, `prisma migrate deploy`, and `prisma db execute` were not run. The shadow database used to compute the diff is local to this check and is not the application database.

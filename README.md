@@ -161,7 +161,7 @@ Generated files under `data/generated/` are gitignored. `*`, `#`, `**`, and blan
 
 `scripts/map-hospital-oews-areas.ts` resolves a hospital to one May 2025 OEWS metropolitan or nonmetropolitan area. It is read-only: it does not change `hospitals`, does not write `local_pay_benchmarks`, and does not add a migration.
 
-The join key is county FIPS. Metropolitan benchmark codes are the 5-digit CBSA code. Nonmetropolitan benchmark codes are the 7-digit BLS area code. Research, the mapping chain, and the schema proposal are in `docs/hospital-oews-area-mapping.md`.
+The join key is county FIPS. Metropolitan benchmark codes are the 5-digit CBSA code. Nonmetropolitan benchmark codes are the 7-digit BLS area code. Research and the mapping chain are in `docs/hospital-oews-area-mapping.md`. `HospitalCountyResolution` and `OewsAreaCounty` are in the Prisma schema. Their migration SQL is not applied, and neither table is populated.
 
 ```bash
 npx tsx scripts/oews/area-mapping/resolve.test.ts
