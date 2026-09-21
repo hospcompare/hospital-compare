@@ -10,9 +10,11 @@ import {
 } from "@/components/ui/card";
 import { PayBySpecialty } from "@/components/pay-by-specialty";
 import { ReviewForm } from "@/components/review-form";
+import { WorkplaceSnapshot } from "@/components/workplace-snapshot";
 import {
   getApprovedSalariesForHospitalProfession,
   getHospitalDetail,
+  getWorkplaceAggregate,
   listApprovedReviews,
 } from "@/lib/queries";
 import { formatScore } from "@/lib/compare";
@@ -54,9 +56,13 @@ const selectedProfession = isEnabledProfession(profession)
 const professionOption = getProfessionOption(selectedProfession);
   const hospital = await getHospitalDetail(decoded);
   if (!hospital) notFound();
-  const [reviews, professionPay] = await Promise.all([
+  const [reviews, professionPay, workplace] = await Promise.all([
     listApprovedReviews(decoded),
     getApprovedSalariesForHospitalProfession({
+      hospitalCcn: decoded,
+      professionSlug: selectedProfession,
+    }),
+    getWorkplaceAggregate({
       hospitalCcn: decoded,
       professionSlug: selectedProfession,
     }),
@@ -237,6 +243,11 @@ const professionOption = getProfessionOption(selectedProfession);
           </CardContent>
         </Card>
       </section>
+
+      <WorkplaceSnapshot
+        aggregate={workplace}
+        professionLabel={professionOption?.label ?? "this profession"}
+      />
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4">
