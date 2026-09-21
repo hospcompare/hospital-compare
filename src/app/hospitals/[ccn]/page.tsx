@@ -8,9 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PayBySpecialty } from "@/components/pay-by-specialty";
 import { ReviewForm } from "@/components/review-form";
-import { getHospitalDetail, listApprovedReviews } from "@/lib/queries";
-import { formatHourly, formatScore } from "@/lib/compare";
+import {
+  getApprovedSalariesForHospitalProfession,
+  getHospitalDetail,
+  listApprovedReviews,
+} from "@/lib/queries";
+import { formatScore } from "@/lib/compare";
 import { WorkplaceReportForm } from "@/components/workplace-report-form";
 import {
   DEFAULT_PROFESSION_SLUG,
@@ -49,7 +54,13 @@ const selectedProfession = isEnabledProfession(profession)
 const professionOption = getProfessionOption(selectedProfession);
   const hospital = await getHospitalDetail(decoded);
   if (!hospital) notFound();
-  const reviews = await listApprovedReviews(decoded);
+  const [reviews, professionPay] = await Promise.all([
+    listApprovedReviews(decoded),
+    getApprovedSalariesForHospitalProfession({
+      hospitalCcn: decoded,
+      professionSlug: selectedProfession,
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6">
@@ -185,34 +196,10 @@ const professionOption = getProfessionOption(selectedProfession);
             <Row label="Magnet" value={hospital.magnetStatus} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Approved pay</CardTitle>
-            <CardDescription>
-              Staging salary candidates are omitted
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {hospital.salaries.length === 0 ? (
-              <p className="text-muted-foreground">
-                No approved salary rows yet.
-              </p>
-            ) : (
-              hospital.salaries.map((salary) => (
-                <div key={`${salary.role}-${salary.effectiveDate}`}>
-                  <p className="font-medium">{salary.role}</p>
-                  <p>
-                    {formatHourly(salary.hourlyMin)} –{" "}
-                    {formatHourly(salary.hourlyMax)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {salary.source} · confidence {salary.confidence ?? "n/a"}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+        <PayBySpecialty
+          pay={professionPay}
+          professionLabel={professionOption?.label ?? "this profession"}
+        />
         <Card>
           <CardHeader>
             <CardTitle>COL + reviews</CardTitle>
