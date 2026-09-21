@@ -251,6 +251,78 @@ export const ingestRequestSchema = z.object({
   sourceAgent: z.string().min(1),
   candidates: z.array(ingestCandidateSchema).min(1).max(200),
 });
+
+/**
+ * Storage ceilings for the existing Salary decimal columns.
+ * Hourly columns are Decimal(8, 2). Annual is Decimal(12, 2).
+ * Values that cannot be stored are rejected. These are not wage caps.
+ */
+function fitsSalaryDecimal(
+  value: number,
+  precision: number,
+  scale: number,
+): boolean {
+  const factor = 10 ** scale;
+  const scaled = Math.round(value * factor);
+  return Math.abs(scaled) < 10 ** precision;
+}
+
+function salaryDecimalSchema(precision: number, scale: number) {
+  return z
+    .number()
+    .nonnegative()
+    .refine((value) => fitsSalaryDecimal(value, precision, scale), {
+      message: "exceeds the supported numeric range",
+    });
+}
+
+const salaryEffectiveDateSchema = z.union([
+  z
+    .string()
+    .trim()
+    .pipe(
+      z.union([
+        z.iso.date(),
+        z.iso.datetime({ offset: true, local: true }),
+      ]),
+    ),
+  z.null(),
+]);
+
+export const salaryIngestSchema = z
+  .object({
+    hospitalCcn: z.string().trim().min(1),
+    professionSlug: z.string().trim().min(1),
+    specialtySlug: z
+      .union([z.string(), z.null()])
+      .optional()
+      .transform((value) => {
+        if (value == null) return null;
+        const trimmed = value.trim();
+        return trimmed.length === 0 ? null : trimmed;
+      }),
+    role: z.string().trim().min(1),
+    hourlyMin: salaryDecimalSchema(8, 2),
+    hourlyMax: salaryDecimalSchema(8, 2),
+    annual: salaryDecimalSchema(12, 2).nullable().optional(),
+    source: z.string().trim().min(1),
+    sourceUrl: z
+      .union([z.string().trim().pipe(z.httpUrl()), z.null()])
+      .optional(),
+    effectiveDate: salaryEffectiveDateSchema.optional(),
+    confidence: z.number().min(0).max(1).nullable().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.hourlyMax < data.hourlyMin) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["hourlyMax"],
+        message: "hourlyMax must be greater than or equal to hourlyMin",
+      });
+    }
+  });
+
 export const workplaceMetricAggregateSchema = z.object({
   slug: z.string(),
   label: z.string(),
@@ -320,6 +392,7 @@ export type CompareResponse = z.infer<typeof compareResponseSchema>;
 export type ReviewPublic = z.infer<typeof reviewPublicSchema>;
 export type ReviewSubmit = z.infer<typeof reviewSubmitSchema>;
 export type IngestRequest = z.infer<typeof ingestRequestSchema>;
+export type SalaryIngestInput = z.infer<typeof salaryIngestSchema>;
 export type SalaryMetric = z.infer<typeof salarySchema>;
 export type ColIndexMetric = z.infer<typeof colIndexSchema>;
 export type ReviewAggregate = z.infer<typeof reviewAggregateSchema>;
