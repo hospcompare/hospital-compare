@@ -43,8 +43,10 @@ const ratingOptions = [1, 2, 3, 4, 5];
 
 export function WorkplaceReportForm({
   hospitalCcn,
+  professionSlug,
 }: {
   hospitalCcn: string;
+  professionSlug: string;
 }) {
   const [employmentType, setEmploymentType] =
     useState<EmploymentType>("travel");
@@ -177,7 +179,7 @@ export function WorkplaceReportForm({
 
     const payload: WorkplaceReportSubmit = {
       hospitalCcn,
-      professionSlug: "registered-nurse",
+      professionSlug,
       specialtySlug: specialtySlug || null,
       employmentType,
       experienceMonth: experienceMonth || null,

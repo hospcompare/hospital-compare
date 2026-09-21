@@ -1,3 +1,4 @@
+import { ProfessionSelector } from "@/components/profession-selector";
 import Link from "next/link";
 import { ArrowRight, Database, GitBranch, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,21 +26,16 @@ export default async function HomePage() {
   EMR, and peer reviews are added through a validated data pipeline as those
   datasets become available.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/hospitals"
-                className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-teal-800 px-4 text-sm font-medium text-teal-50 hover:bg-teal-700"
-              >
-                Search hospitals
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link
-  href="/compare"
-  className="inline-flex h-10 items-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
->
-  Compare hospitals
-</Link>
-            </div>
+            <div className="max-w-sm space-y-3">
+  <ProfessionSelector />
+
+  <Link
+    href="/compare?profession=registered-nurse"
+    className="inline-flex h-10 items-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+  >
+    Compare hospitals
+  </Link>
+</div>
           </div>
          <Card className="bg-card/90">
   <CardHeader>
@@ -112,7 +108,7 @@ export default async function HomePage() {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {hospitals.map((hospital) => (
               <li key={hospital.ccn}>
-                <Link href={`/hospitals/${hospital.ccn}`} className="block h-full">
+                <Link href={`/hospitals/${hospital.ccn}?profession=registered-nurse`} className="block h-full">
                   <Card className="h-full hover:ring-teal-700/40">
                     <CardHeader>
                       <CardTitle>{hospital.name}</CardTitle>

@@ -12,7 +12,13 @@ import type { HospitalSummary } from "@/lib/contracts";
 
 const MAX_COMPARE = 5;
 
-export function HospitalPicker({ initialQuery = "" }: { initialQuery?: string }) {
+export function HospitalPicker({
+  initialQuery = "",
+  professionSlug,
+}: {
+  initialQuery?: string;
+  professionSlug: string;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [hospitals, setHospitals] = useState<HospitalSummary[]>([]);
@@ -55,9 +61,14 @@ export function HospitalPicker({ initialQuery = "" }: { initialQuery?: string })
   }
 
   function goCompare() {
-    if (selected.length < 2) return;
-    router.push(`/compare?ccns=${selected.join(",")}`);
-  }
+  if (selected.length < 2) return;
+
+  const params = new URLSearchParams();
+  params.set("ccns", selected.join(","));
+  params.set("profession", professionSlug);
+
+  router.push(`/compare?${params.toString()}`);
+}
 
   return (
     <div className="space-y-6">
@@ -149,7 +160,9 @@ export function HospitalPicker({ initialQuery = "" }: { initialQuery?: string })
                     </span>
                   </label>
                   <Link
-                    href={`/hospitals/${hospital.ccn}`}
+  href={`/hospitals/${hospital.ccn}?profession=${encodeURIComponent(
+    professionSlug,
+  )}`}
                     className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted"
                   >
                     Details

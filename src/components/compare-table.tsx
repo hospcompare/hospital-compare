@@ -24,7 +24,13 @@ function formatQualityComparison(
 
   return `${measureCount} measures · ${better ?? 0} better / ${same ?? 0} same / ${worse ?? 0} worse`;
 }
-export function CompareTable({ result }: { result: CompareResponse }) {
+export function CompareTable({
+  result,
+  professionSlug,
+}: {
+  result: CompareResponse;
+  professionSlug: string;
+}) {
   if (result.hospitals.length === 0) {
     return (
       <p className="rounded-xl bg-card p-6 text-sm text-muted-foreground ring-1 ring-foreground/10">
@@ -173,7 +179,9 @@ export function CompareTable({ result }: { result: CompareResponse }) {
                 className="min-w-48 align-bottom"
               >
                 <Link
-                  href={`/hospitals/${row.hospital.ccn}`}
+  href={`/hospitals/${row.hospital.ccn}?profession=${encodeURIComponent(
+    professionSlug,
+  )}`}
                   className="font-heading text-base text-foreground hover:underline"
                 >
                   {row.hospital.name}

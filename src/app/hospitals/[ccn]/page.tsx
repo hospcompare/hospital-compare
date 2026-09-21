@@ -12,6 +12,11 @@ import { ReviewForm } from "@/components/review-form";
 import { getHospitalDetail, listApprovedReviews } from "@/lib/queries";
 import { formatHourly, formatScore } from "@/lib/compare";
 import { WorkplaceReportForm } from "@/components/workplace-report-form";
+import {
+  DEFAULT_PROFESSION_SLUG,
+  getProfessionOption,
+  isEnabledProfession,
+} from "@/lib/profession-options";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +34,19 @@ export async function generateMetadata({
 
 export default async function HospitalDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ ccn: string }>;
+  searchParams: Promise<{ profession?: string }>;
 }) {
   const { ccn } = await params;
+  const { profession } = await searchParams;
   const decoded = decodeURIComponent(ccn);
+const selectedProfession = isEnabledProfession(profession)
+  ? profession!
+  : DEFAULT_PROFESSION_SLUG;
+
+const professionOption = getProfessionOption(selectedProfession);
   const hospital = await getHospitalDetail(decoded);
   if (!hospital) notFound();
   const reviews = await listApprovedReviews(decoded);
@@ -54,7 +67,9 @@ export default async function HospitalDetailPage({
         </p>
         <p>
           <Link
-            href={`/compare?ccns=${hospital.ccn}`}
+            href={`/compare?ccns=${hospital.ccn}&profession=${encodeURIComponent(
+  selectedProfession,
+)}`}
             className="text-sm text-teal-800 hover:underline"
           >
             Add to comparison
@@ -272,7 +287,9 @@ export default async function HospitalDetailPage({
         </div>
 <section className="space-y-4">
   <div>
-    <h2 className="font-heading text-2xl">Workplace experience</h2>
+    <h2 className="font-heading text-2xl">
+  Workplace experience — {professionOption?.label ?? "Healthcare worker"}
+</h2>
     <p className="text-sm text-muted-foreground">
       Share structured workplace information to help healthcare workers compare
       hospitals. This initial questionnaire is designed for registered nurses.
@@ -288,7 +305,10 @@ export default async function HospitalDetailPage({
       </CardDescription>
     </CardHeader>
     <CardContent>
-      <WorkplaceReportForm hospitalCcn={hospital.ccn} />
+      <WorkplaceReportForm
+  hospitalCcn={hospital.ccn}
+  professionSlug={selectedProfession}
+/>
     </CardContent>
   </Card>
 </section>
