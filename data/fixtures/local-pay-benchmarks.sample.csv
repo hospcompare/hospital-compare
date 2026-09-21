@@ -1,0 +1,3 @@
+professionSlug,geographicAreaCode,geographicAreaName,geographicLevel,hourlyMean,hourlyMedian,annualMean,annualMedian,source,sourceDataset,sourceUrl,effectiveDate
+registered-nurse,FIXTURE-AREA-001,Fixture Area,fixture-level,1.25,1.50,2.00,2.50,fixture-sample,fixture-sample-release,https://example.com/local-pay-benchmark-fixture,2024-01-01
+pharmacist,FIXTURE-AREA-001,Fixture Area,fixture-level,1.00,,3.00,,fixture-sample,fixture-sample-release,https://example.com/local-pay-benchmark-fixture,2024-01-01

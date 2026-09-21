@@ -124,6 +124,21 @@ npm run dev
 | `INGEST_API_KEY` | Shared secret for `POST /api/ingest/candidates` |
 | `NEXT_PUBLIC_APP_URL` | Documented public origin (optional at runtime) |
 
+## Local pay benchmark import
+
+`scripts/import-local-pay-benchmarks.ts` loads **normalized** local profession pay benchmarks into `local_pay_benchmarks`. It does not download government files. Dry-run is the default; `--write` upserts only when every row is valid. Any validation failure blocks the whole file, same as the CMS importers.
+
+```bash
+npx tsx scripts/import-local-pay-benchmarks.ts --file data/fixtures/local-pay-benchmarks.sample.csv
+npx tsx scripts/import-local-pay-benchmarks.ts --file path/to/normalized.csv --write
+```
+
+Required CSV header (order does not matter):
+
+`professionSlug`, `geographicAreaCode`, `geographicAreaName`, `geographicLevel`, `hourlyMean`, `hourlyMedian`, `annualMean`, `annualMedian`, `source`, `sourceDataset`, `sourceUrl`, `effectiveDate`
+
+`professionSlug` must match an active profession already stored by `scripts/initialize-workplace-catalog.ts`. Do not include a profession id column. Empty wage cells are null; at least one wage is required. `data/fixtures/local-pay-benchmarks.sample.csv` is a fake fixture for the format, not a wage dataset.
+
 ## API
 
 All public reads use **approved** production rows. Staging candidates are invisible here.
