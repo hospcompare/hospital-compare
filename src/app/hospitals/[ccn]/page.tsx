@@ -14,6 +14,7 @@ import { WorkplaceSnapshot } from "@/components/workplace-snapshot";
 import {
   getApprovedSalariesForHospitalProfession,
   getHospitalDetail,
+  getLocalPayBenchmarkForHospitalProfession,
   getWorkplaceAggregate,
   listApprovedReviews,
 } from "@/lib/queries";
@@ -56,9 +57,13 @@ const selectedProfession = isEnabledProfession(profession)
 const professionOption = getProfessionOption(selectedProfession);
   const hospital = await getHospitalDetail(decoded);
   if (!hospital) notFound();
-  const [reviews, professionPay, workplace] = await Promise.all([
+  const [reviews, professionPay, localBenchmark, workplace] = await Promise.all([
     listApprovedReviews(decoded),
     getApprovedSalariesForHospitalProfession({
+      hospitalCcn: decoded,
+      professionSlug: selectedProfession,
+    }),
+    getLocalPayBenchmarkForHospitalProfession({
       hospitalCcn: decoded,
       professionSlug: selectedProfession,
     }),
@@ -205,6 +210,7 @@ const professionOption = getProfessionOption(selectedProfession);
         <PayBySpecialty
           pay={professionPay}
           professionLabel={professionOption?.label ?? "this profession"}
+          localBenchmark={localBenchmark}
         />
         <Card>
           <CardHeader>
