@@ -9,8 +9,10 @@ import {
 import { formatHourly } from "@/lib/compare";
 import type {
   HospitalProfessionSalaries,
+  LocalPayBenchmarkLookup,
   ProfessionSalary,
 } from "@/lib/contracts";
+import { presentLocalPayBenchmark } from "@/lib/local-pay-benchmark-display";
 
 const UNSPECIFIED_SPECIALTY = "General / Unspecified";
 
@@ -74,12 +76,50 @@ function SourceValue({
   );
 }
 
+function LocalMarketBenchmark({
+  lookup,
+  professionLabel,
+}: {
+  lookup: LocalPayBenchmarkLookup | null;
+  professionLabel: string;
+}) {
+  const view = presentLocalPayBenchmark(lookup, professionLabel);
+  const showAttribution = Boolean(view.source || view.release);
+
+  return (
+    <section
+      aria-label={view.heading}
+      className="space-y-1 border-b border-foreground/10 pb-4"
+    >
+      <p className="font-medium">{view.heading}</p>
+      <p className="text-muted-foreground">{view.context}</p>
+      {view.figure ? (
+        <p className="text-base font-semibold">{view.figure}</p>
+      ) : (
+        <p>{view.unavailable}</p>
+      )}
+      {view.marketName ? <p>{view.marketName}</p> : null}
+      {showAttribution ? (
+        <p className="text-muted-foreground">
+          {view.source ? (
+            <SourceValue source={view.source} sourceUrl={view.sourceUrl} />
+          ) : null}
+          {view.source && view.release ? " · " : null}
+          {view.release}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function PayBySpecialty({
   pay,
   professionLabel,
+  localBenchmark,
 }: {
   pay: HospitalProfessionSalaries | null;
   professionLabel: string;
+  localBenchmark: LocalPayBenchmarkLookup | null;
 }) {
   const rows = pay?.salaries ?? [];
   const label = pay?.profession.name || professionLabel;
@@ -93,6 +133,10 @@ export function PayBySpecialty({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
+        <LocalMarketBenchmark
+          lookup={localBenchmark}
+          professionLabel={label}
+        />
         {rows.length === 0 ? (
           <p className="text-muted-foreground">
             No approved pay data yet for this profession.
