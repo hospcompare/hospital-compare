@@ -5,6 +5,7 @@ import type {
   HospitalDetail,
   HospitalProfessionSalaries,
   HospitalSummary,
+  LocalPayBenchmarkLookup,
   ReviewAggregate,
   ReviewPublic,
   SalaryMetric,
@@ -861,5 +862,146 @@ export async function getApprovedSalariesForHospitalProfession({
           : null,
       };
     }),
+  };
+}
+
+/**
+ * Supported local-pay release. Hospital counties stay on the Census vintage.
+ * OEWS area membership and wages stay on one BLS release. Other datasets are
+ * ignored so a later or earlier release cannot fill a missing row.
+ */
+const HOSPITAL_COUNTY_SOURCE = "Census Bureau";
+const HOSPITAL_COUNTY_DATASET = "all-geocodes-v2024";
+const LOCAL_PAY_SOURCE = "BLS OEWS";
+const LOCAL_PAY_DATASET = "OEWS-2025-MAY";
+
+/**
+ * Read-only local profession pay benchmark for one hospital.
+ *
+ * Join, using persisted rows only:
+ * Hospital → HospitalCountyResolution → OewsAreaCounty → LocalPayBenchmark.
+ * Request time does not fuzzy-match county names, ZIP codes, or area titles.
+ *
+ * Returns null when the hospital CCN or profession slug does not exist.
+ * The API maps that null to 404. A known pair with no county resolution,
+ * no OEWS area row, or no wage row returns a payload whose benchmark is null.
+ * geography is set only when both the Census county row and the OEWS area
+ * row for this release exist.
+ */
+export async function getLocalPayBenchmarkForHospitalProfession({
+  hospitalCcn,
+  professionSlug,
+}: {
+  hospitalCcn: string;
+  professionSlug: string;
+}): Promise<LocalPayBenchmarkLookup | null> {
+  const [hospital, profession] = await Promise.all([
+    prisma.hospital.findUnique({
+      where: { ccn: hospitalCcn },
+      select: { ccn: true },
+    }),
+    prisma.profession.findUnique({
+      where: { slug: professionSlug },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        abbreviation: true,
+      },
+    }),
+  ]);
+
+  if (!hospital || !profession) {
+    return null;
+  }
+
+  const professionPayload = {
+    id: profession.id,
+    slug: profession.slug,
+    name: profession.name,
+    abbreviation: profession.abbreviation,
+  };
+
+  const county = await prisma.hospitalCountyResolution.findUnique({
+    where: {
+      hospitalCcn_source_sourceDataset: {
+        hospitalCcn: hospital.ccn,
+        source: HOSPITAL_COUNTY_SOURCE,
+        sourceDataset: HOSPITAL_COUNTY_DATASET,
+      },
+    },
+    select: {
+      countyFips: true,
+      countyName: true,
+    },
+  });
+
+  if (!county) {
+    return {
+      hospitalCcn: hospital.ccn,
+      profession: professionPayload,
+      geography: null,
+      benchmark: null,
+    };
+  }
+
+  const area = await prisma.oewsAreaCounty.findUnique({
+    where: {
+      countyFips_source_sourceDataset: {
+        countyFips: county.countyFips,
+        source: LOCAL_PAY_SOURCE,
+        sourceDataset: LOCAL_PAY_DATASET,
+      },
+    },
+    select: {
+      geographicAreaCode: true,
+      geographicAreaName: true,
+      geographicLevel: true,
+    },
+  });
+
+  if (!area) {
+    return {
+      hospitalCcn: hospital.ccn,
+      profession: professionPayload,
+      geography: null,
+      benchmark: null,
+    };
+  }
+
+  const row = await prisma.localPayBenchmark.findUnique({
+    where: {
+      professionId_geographicAreaCode_geographicLevel_source_sourceDataset: {
+        professionId: profession.id,
+        geographicAreaCode: area.geographicAreaCode,
+        geographicLevel: area.geographicLevel,
+        source: LOCAL_PAY_SOURCE,
+        sourceDataset: LOCAL_PAY_DATASET,
+      },
+    },
+  });
+
+  return {
+    hospitalCcn: hospital.ccn,
+    profession: professionPayload,
+    geography: {
+      countyFips: county.countyFips,
+      countyName: county.countyName,
+      geographicAreaCode: area.geographicAreaCode,
+      geographicAreaName: area.geographicAreaName,
+      geographicLevel: area.geographicLevel,
+    },
+    benchmark: row
+      ? {
+          hourlyMean: toNumber(row.hourlyMean),
+          hourlyMedian: toNumber(row.hourlyMedian),
+          annualMean: toNumber(row.annualMean),
+          annualMedian: toNumber(row.annualMedian),
+          source: row.source,
+          sourceDataset: row.sourceDataset,
+          sourceUrl: row.sourceUrl,
+          effectiveDate: formatDate(row.effectiveDate),
+        }
+      : null,
   };
 }

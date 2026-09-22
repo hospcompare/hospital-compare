@@ -385,6 +385,37 @@ export const hospitalProfessionSalariesSchema = z.object({
   salaries: z.array(professionSalarySchema),
 });
 
+export const localPayBenchmarkGeographySchema = z.object({
+  countyFips: z.string(),
+  countyName: z.string(),
+  geographicAreaCode: z.string(),
+  geographicAreaName: z.string(),
+  geographicLevel: z.string(),
+});
+
+export const localPayBenchmarkValuesSchema = z.object({
+  hourlyMean: z.number().nullable(),
+  hourlyMedian: z.number().nullable(),
+  annualMean: z.number().nullable(),
+  annualMedian: z.number().nullable(),
+  source: z.string(),
+  sourceDataset: z.string(),
+  sourceUrl: z.string().nullable(),
+  effectiveDate: z.string().nullable(),
+});
+
+/**
+ * Known hospital and profession. geography is null until both the Census
+ * county resolution and the current OEWS area row exist. benchmark is null
+ * when that area has no wage row for the profession and release.
+ */
+export const localPayBenchmarkLookupSchema = z.object({
+  hospitalCcn: z.string(),
+  profession: professionIdentitySchema,
+  geography: localPayBenchmarkGeographySchema.nullable(),
+  benchmark: localPayBenchmarkValuesSchema.nullable(),
+});
+
 export type HospitalSummary = z.infer<typeof hospitalSummarySchema>;
 export type HospitalDetail = z.infer<typeof hospitalDetailSchema>;
 export type CompareRequest = z.infer<typeof compareRequestSchema>;
@@ -403,3 +434,6 @@ export type ProfessionIdentity = z.infer<typeof professionIdentitySchema>;
 export type ProfessionSalarySpecialty = z.infer<typeof professionSalarySpecialtySchema>;
 export type ProfessionSalary = z.infer<typeof professionSalarySchema>;
 export type HospitalProfessionSalaries = z.infer<typeof hospitalProfessionSalariesSchema>;
+export type LocalPayBenchmarkGeography = z.infer<typeof localPayBenchmarkGeographySchema>;
+export type LocalPayBenchmarkValues = z.infer<typeof localPayBenchmarkValuesSchema>;
+export type LocalPayBenchmarkLookup = z.infer<typeof localPayBenchmarkLookupSchema>;
