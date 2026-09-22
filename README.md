@@ -161,7 +161,7 @@ Generated files under `data/generated/` are gitignored. `*`, `#`, `**`, and blan
 
 `scripts/map-hospital-oews-areas.ts` resolves a hospital to one May 2025 OEWS metropolitan or nonmetropolitan area. It is read-only: it does not change `hospitals`, does not write `local_pay_benchmarks`, and does not add a migration.
 
-The join key is county FIPS. Metropolitan benchmark codes are the 5-digit CBSA code. Nonmetropolitan benchmark codes are the 7-digit BLS area code. Research and the mapping chain are in `docs/hospital-oews-area-mapping.md`. `HospitalCountyResolution` and `OewsAreaCounty` are in the Prisma schema. Their migration SQL is not applied, and neither table is populated.
+The join key is county FIPS. Metropolitan benchmark codes are the 5-digit CBSA code. Nonmetropolitan benchmark codes are the 7-digit BLS area code. Research and the mapping chain are in `docs/hospital-oews-area-mapping.md`. `HospitalCountyResolution` and `OewsAreaCounty` are in the Prisma schema. Apply the geography migration locally before writing; the population script does not migrate.
 
 ```bash
 npx tsx scripts/oews/area-mapping/resolve.test.ts
@@ -170,6 +170,17 @@ npx tsx scripts/map-hospital-oews-areas.ts
 ```
 
 The last command downloads Census, OMB, ZCTA, and CMS geography files into `data/generated/oews-area-mapping/` and prints coverage for the CMS hospital set.
+
+### OEWS geography population
+
+`scripts/populate-oews-geography.ts` upserts the two geography tables. Dry-run is the default and writes nothing. `--write` runs only after the whole plan validates, in one transaction. It does not delete rows outside the plan, and it does not change `local_pay_benchmarks`.
+
+Hospital county rows are Census Bureau / `all-geocodes-v2024`. OEWS county rows are BLS OEWS / `OEWS-2025-MAY`. Unresolved hospitals are reported and omitted.
+
+```bash
+npx tsx scripts/populate-oews-geography.ts
+npx tsx scripts/populate-oews-geography.ts --write
+```
 
 ## API
 

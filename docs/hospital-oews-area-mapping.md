@@ -194,6 +194,13 @@ hospital_county_resolutions.county_fips
   and oews_area_counties.source_dataset = local_pay_benchmarks.source_dataset
 ```
 
-Not done yet: import `area_definitions_m2025.xlsx` into `oews_area_counties`, or write resolver output into `hospital_county_resolutions`. Unresolved hospitals stay absent rather than guessed. Do not backfill `LocalPayBenchmark` and do not render benchmarks on the hospital page.
+`scripts/populate-oews-geography.ts` writes those two tables. Dry-run is the default. `--write` upserts only after whole-plan validation, in one transaction. Unresolved hospitals stay absent rather than guessed. The importer does not backfill `LocalPayBenchmark`, does not render benchmarks, and does not apply migrations.
 
-`prisma migrate diff` wrote the SQL file. `prisma migrate dev`, `prisma migrate deploy`, and `prisma db execute` were not run. The shadow database used to compute the diff is local to this check and is not the application database.
+Hospital county identity is Census Bureau / `all-geocodes-v2024`. OEWS county identity is BLS OEWS / `OEWS-2025-MAY`. Same-release reruns update mutable fields on those keys and do not delete other rows.
+
+```bash
+npx tsx scripts/populate-oews-geography.ts
+npx tsx scripts/populate-oews-geography.ts --write
+```
+
+`prisma migrate diff` wrote the SQL file. `prisma migrate dev`, `prisma migrate deploy`, and `prisma db execute` were not run by the prototype. Apply the migration locally before `--write`. The population script does not migrate.
