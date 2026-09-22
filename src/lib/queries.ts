@@ -882,9 +882,10 @@ const LOCAL_PAY_DATASET = "OEWS-2025-MAY";
  * Hospital → HospitalCountyResolution → OewsAreaCounty → LocalPayBenchmark.
  * Request time does not fuzzy-match county names, ZIP codes, or area titles.
  *
- * Returns null when the hospital CCN or profession slug does not exist.
- * The API maps that null to 404. A known pair with no county resolution,
- * no OEWS area row, or no wage row returns a payload whose benchmark is null.
+ * Returns null when the hospital CCN does not exist, or the profession slug
+ * does not exist or is inactive. The API maps that null to 404. An active
+ * profession at a known hospital with no county resolution, no OEWS area
+ * row, or no wage row returns a payload whose benchmark is null.
  * geography is set only when both the Census county row and the OEWS area
  * row for this release exist.
  */
@@ -907,11 +908,12 @@ export async function getLocalPayBenchmarkForHospitalProfession({
         slug: true,
         name: true,
         abbreviation: true,
+        active: true,
       },
     }),
   ]);
 
-  if (!hospital || !profession) {
+  if (!hospital || !profession?.active) {
     return null;
   }
 

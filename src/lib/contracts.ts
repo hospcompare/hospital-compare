@@ -405,7 +405,7 @@ export const localPayBenchmarkValuesSchema = z.object({
 });
 
 /**
- * Known hospital and profession. geography is null until both the Census
+ * Active profession at a known hospital. geography is null until both the Census
  * county resolution and the current OEWS area row exist. benchmark is null
  * when that area has no wage row for the profession and release.
  */
