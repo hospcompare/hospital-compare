@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { WorkerPayFields } from "@/components/worker-pay-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,32 +40,44 @@ export function ReviewForm({
   const [pay, setPay] = useState<WorkerPayFormState>(() =>
     initialWorkerPayFormState(professionSlug),
   );
+  const [reviewCommitted, setReviewCommitted] = useState(false);
   const [status, setStatus] = useState<
     "idle" | "saving" | ContributionSubmitStatus
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const draftingReview = !reviewCommitted || body.trim().length > 0;
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setStatus("saving");
     setMessage(null);
-    const result = await submitReviewWithOptionalPay({
-      hospitalCcn,
-      body,
-      employmentType,
-      unit,
-      scores,
-      pay,
-    });
-    setStatus(result.status);
-    setMessage(result.message);
-    if (result.reviewSaved) {
-      setBody("");
-      setUnit("");
-      setScores({});
-    }
-    if (result.paySaved) {
-      setPay(initialWorkerPayFormState(professionSlug));
+    const retryPayOnly = reviewCommitted && body.trim().length === 0;
+    try {
+      const result = await submitReviewWithOptionalPay({
+        hospitalCcn,
+        body,
+        employmentType,
+        unit,
+        scores,
+        pay,
+        skipReview: retryPayOnly,
+      });
+      setStatus(result.status);
+      setMessage(result.message);
+      if (result.reviewSaved && !retryPayOnly) {
+        setReviewCommitted(true);
+        setBody("");
+        setUnit("");
+        setScores({});
+      }
+      if (result.paySaved) {
+        setPay(initialWorkerPayFormState(professionSlug));
+      }
+    } finally {
+      submittingRef.current = false;
     }
   }
 
@@ -140,8 +152,8 @@ export function ReviewForm({
         <Label htmlFor="body">Review</Label>
         <Textarea
           id="body"
-          required
-          minLength={20}
+          required={draftingReview}
+          minLength={draftingReview ? 20 : undefined}
           value={body}
           onChange={(event) => setBody(event.target.value)}
           placeholder="What should a traveler or staff nurse know about ratios, charge support, housing, and the unit?"

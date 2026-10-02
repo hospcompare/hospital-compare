@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { WorkerPayFields } from "@/components/worker-pay-fields";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,20 +23,27 @@ export function PayReportForm({
     "idle",
   );
   const [message, setMessage] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setStatus("saving");
     setMessage(null);
-    const result = await submitStandalonePayForm(hospitalCcn, values);
-    if (!result.ok) {
-      setStatus("error");
+    try {
+      const result = await submitStandalonePayForm(hospitalCcn, values);
+      if (!result.ok) {
+        setStatus("error");
+        setMessage(result.message);
+        return;
+      }
+      setStatus("success");
       setMessage(result.message);
-      return;
+      setValues(initialWorkerPayFormState(professionSlug));
+    } finally {
+      submittingRef.current = false;
     }
-    setStatus("success");
-    setMessage(result.message);
-    setValues(initialWorkerPayFormState(professionSlug));
   }
 
   return (

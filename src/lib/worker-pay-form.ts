@@ -224,6 +224,11 @@ export type ReviewWithOptionalPayInput = {
     wlbScore?: number;
   };
   pay: WorkerPayFormState;
+  /**
+   * True when this form session already stored the review.
+   * A later attempt posts only the salary report.
+   */
+  skipReview?: boolean;
 };
 
 export type ContributionSubmitStatus = "success" | "partial" | "error";
@@ -238,11 +243,17 @@ export type ContributionSubmitResult = {
 /**
  * Review and pay are separate writes.
  * There is no cross-request transaction: a failed second call is reported as partial success.
+ * A review HTTP failure does not skip the salary write. The pay report is still sent,
+ * and the message names each result instead of treating the pair as one transaction.
  */
 export async function submitReviewWithOptionalPay(
   input: ReviewWithOptionalPayInput,
   fetcher: Fetcher = fetch,
 ): Promise<ContributionSubmitResult> {
+  if (input.skipReview) {
+    return submitPayAfterSavedReview(input, fetcher);
+  }
+
   const review = buildReviewSubmitPayload({
     hospitalCcn: input.hospitalCcn,
     body: input.body,
@@ -317,6 +328,50 @@ export async function submitReviewWithOptionalPay(
     status: "error",
     message: REVIEW_AND_PAY_FAILURE_MESSAGE,
     reviewSaved: false,
+    paySaved: false,
+  };
+}
+
+async function submitPayAfterSavedReview(
+  input: ReviewWithOptionalPayInput,
+  fetcher: Fetcher,
+): Promise<ContributionSubmitResult> {
+  if (!isWorkerPayRequested(input.pay)) {
+    return {
+      status: "success",
+      message: REVIEW_SUCCESS_MESSAGE,
+      reviewSaved: true,
+      paySaved: false,
+    };
+  }
+
+  const built = buildWorkerSalaryReportPayload(input.hospitalCcn, input.pay);
+  if (!built.ok) {
+    return {
+      status: "error",
+      message: built.error,
+      reviewSaved: true,
+      paySaved: false,
+    };
+  }
+
+  const payResult = await postJson(
+    "/api/worker-salary-reports",
+    built.payload,
+    fetcher,
+  );
+  if (payResult.ok) {
+    return {
+      status: "success",
+      message: PAY_REPORT_SUCCESS_MESSAGE,
+      reviewSaved: true,
+      paySaved: true,
+    };
+  }
+  return {
+    status: "partial",
+    message: REVIEW_SUCCESS_PAY_FAILURE_MESSAGE,
+    reviewSaved: true,
     paySaved: false,
   };
 }

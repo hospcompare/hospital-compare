@@ -324,6 +324,52 @@ test("review success and salary failure produces partial-success messaging", asy
   assert.equal(calls.length, 2);
 });
 
+test("salary retry after a saved review does not post the review again", async () => {
+  const failed = recordFetcher(() =>
+    jsonResponse(500, { error: "database unavailable" }),
+  );
+  const retryFailure = await submitReviewWithOptionalPay(
+    {
+      hospitalCcn,
+      body: "",
+      employmentType: "staff",
+      unit: "",
+      scores: {},
+      pay: payState({ hourlyRate: "41" }),
+      skipReview: true,
+    },
+    failed.fetcher,
+  );
+  assert.equal(retryFailure.status, "partial");
+  assert.equal(retryFailure.reviewSaved, true);
+  assert.equal(retryFailure.paySaved, false);
+  assert.equal(retryFailure.message, REVIEW_SUCCESS_PAY_FAILURE_MESSAGE);
+  assert.equal(failed.calls.length, 1);
+  assert.equal(failed.calls[0]?.url, "/api/worker-salary-reports");
+
+  const recovered = recordFetcher(() =>
+    jsonResponse(201, { moderationStatus: "pending" }),
+  );
+  const retrySuccess = await submitReviewWithOptionalPay(
+    {
+      hospitalCcn,
+      body: "",
+      employmentType: "staff",
+      unit: "",
+      scores: {},
+      pay: payState({ hourlyRate: "41" }),
+      skipReview: true,
+    },
+    recovered.fetcher,
+  );
+  assert.equal(retrySuccess.status, "success");
+  assert.equal(retrySuccess.message, PAY_REPORT_SUCCESS_MESSAGE);
+  assert.equal(retrySuccess.paySaved, true);
+  assert.equal(recovered.calls.length, 1);
+  assert.equal(recovered.calls[0]?.url, "/api/worker-salary-reports");
+  assert.equal(recovered.calls[0]?.body.hourlyRate, 41);
+});
+
 test("salary success and review failure does not claim review success", async () => {
   const { calls, fetcher } = recordFetcher((url) => {
     if (url === "/api/reviews") {
