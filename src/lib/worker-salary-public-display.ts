@@ -49,6 +49,8 @@ export type WorkerSalaryPublicDisplay =
 
 export type WorkerSalarySpecialtyPublicPay = {
   specialtySlug: string | null;
+  /** Display label for a worker-only section. Null specialty stays unlabeled here. */
+  specialtyName?: string | null;
   display: WorkerSalaryPublicDisplay;
 };
 
@@ -183,14 +185,19 @@ export function toWorkerSalarySpecialtyPublicPay(
   specialties:
     | readonly (WorkerSalaryPublicAggregateInput & {
         specialtySlug: string | null;
+        specialtyName?: string | null;
       })[]
     | null
     | undefined,
 ): WorkerSalarySpecialtyPublicPay[] {
-  return (specialties ?? []).map((aggregate) => ({
-    specialtySlug: aggregate.specialtySlug,
-    display: selectWorkerSalaryPublicDisplay(aggregate),
-  }));
+  return (specialties ?? []).map((aggregate) => {
+    const specialtyName = aggregate.specialtyName?.trim() || null;
+    return {
+      specialtySlug: aggregate.specialtySlug,
+      ...(specialtyName ? { specialtyName } : {}),
+      display: selectWorkerSalaryPublicDisplay(aggregate),
+    };
+  });
 }
 
 /** Exact specialty match. A missing specialty is the unspecified bucket, not every specialty. */

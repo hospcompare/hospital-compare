@@ -1231,6 +1231,8 @@ export async function getWorkerSalaryAggregate({
  * A null specialtySlug is only reports with no specialty. It is not a
  * profession-wide total, and specialties are not filled in from each other.
  * Pending, flagged, and rejected rows are excluded. Differentials are not read.
+ * specialtyName is the specialty's display label for the page. It is not
+ * an input to the aggregate math.
  *
  * Returns null when the hospital does not exist, or the profession does not
  * exist or is inactive. An empty specialties list means there are no approved
@@ -1245,7 +1247,9 @@ export async function getWorkerSalaryAggregatesBySpecialty({
 }): Promise<{
   hospitalCcn: string;
   professionSlug: string;
-  specialties: WorkerSalarySpecialtyAggregate[];
+  specialties: Array<
+    WorkerSalarySpecialtyAggregate & { specialtyName: string | null }
+  >;
 } | null> {
   const hospital = await prisma.hospital.findUnique({
     where: { ccn: hospitalCcn },
@@ -1275,10 +1279,19 @@ export async function getWorkerSalaryAggregatesBySpecialty({
       hourlyRate: true,
       annualSalary: true,
       specialty: {
-        select: { slug: true },
+        select: { slug: true, name: true },
       },
     },
   });
+
+  const specialtyNames = new Map<string, string>();
+  for (const report of reports) {
+    const slug = report.specialty?.slug;
+    const name = report.specialty?.name.trim();
+    if (slug && name && !specialtyNames.has(slug)) {
+      specialtyNames.set(slug, name);
+    }
+  }
 
   return {
     hospitalCcn: hospital.ccn,
@@ -1289,6 +1302,11 @@ export async function getWorkerSalaryAggregatesBySpecialty({
         hourlyRate: toNumber(report.hourlyRate),
         annualSalary: toNumber(report.annualSalary),
       })),
-    ),
+    ).map((specialty) => ({
+      ...specialty,
+      specialtyName: specialty.specialtySlug
+        ? (specialtyNames.get(specialty.specialtySlug) ?? null)
+        : null,
+    })),
   };
 }
