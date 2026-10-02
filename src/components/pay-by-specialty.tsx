@@ -84,6 +84,108 @@ function SourceValue({
   );
 }
 
+function EmployerPostedPay({
+  salaries,
+}: {
+  salaries: readonly ProfessionSalary[];
+}) {
+  if (salaries.length === 0) {
+    return (
+      <div className="space-y-1">
+        <p className="text-muted-foreground">Employer posted pay</p>
+        <p className="text-muted-foreground">
+          No approved employer pay data yet.
+        </p>
+      </div>
+    );
+  }
+
+  return salaries.map((salary, index) => (
+    <div
+      key={salary.id}
+      className={
+        index === 0
+          ? "space-y-1"
+          : "space-y-1 border-t border-foreground/10 pt-3"
+      }
+    >
+      <p className="text-muted-foreground">Employer posted pay</p>
+      <Field
+        label="Hourly"
+        value={`${formatHourly(salary.hourlyMin)} – ${formatHourly(salary.hourlyMax)}`}
+      />
+      <Field
+        label="Range midpoint"
+        value={formatHourly(salary.hourlyMid)}
+      />
+      {salary.annual != null && Number.isFinite(salary.annual) ? (
+        <Field label="Annual" value={formatAnnual(salary.annual)} />
+      ) : null}
+      <Field
+        label="Source"
+        value={
+          <SourceValue source={salary.source} sourceUrl={salary.sourceUrl} />
+        }
+      />
+      <Field label="Effective" value={salary.effectiveDate ?? "—"} />
+    </div>
+  ));
+}
+
+function workerOnlySpecialtyLabel(row: WorkerSalarySpecialtyPublicPay) {
+  if (row.specialtySlug == null) return UNSPECIFIED_SPECIALTY;
+  const name = row.specialtyName?.trim();
+  if (name) return name;
+  return row.specialtySlug;
+}
+
+type PaySpecialtySection = {
+  slug: string | null;
+  label: string;
+  salaries: ProfessionSalary[];
+};
+
+/**
+ * One section per specialty. Employer rows keep their incoming order.
+ * Worker-only specialties follow afterward, in worker-pay order.
+ * A null specialty is General / Unspecified and is not merged with any other.
+ */
+function paySpecialtySections(
+  salaries: readonly ProfessionSalary[],
+  workerPay: readonly WorkerSalarySpecialtyPublicPay[],
+): PaySpecialtySection[] {
+  const sections: PaySpecialtySection[] = [];
+  const indexBySlug = new Map<string | null, number>();
+
+  for (const salary of salaries) {
+    const slug = salary.specialty?.slug ?? null;
+    const existing = indexBySlug.get(slug);
+    if (existing == null) {
+      indexBySlug.set(slug, sections.length);
+      sections.push({
+        slug,
+        label: specialtyLabel(salary.specialty),
+        salaries: [salary],
+      });
+    } else {
+      sections[existing]?.salaries.push(salary);
+    }
+  }
+
+  for (const worker of workerPay) {
+    const slug = worker.specialtySlug ?? null;
+    if (indexBySlug.has(slug)) continue;
+    indexBySlug.set(slug, sections.length);
+    sections.push({
+      slug,
+      label: workerOnlySpecialtyLabel(worker),
+      salaries: [],
+    });
+  }
+
+  return sections;
+}
+
 function WorkerReportedPay({
   display,
 }: {
@@ -138,9 +240,7 @@ function LocalMarketBenchmark({
       {view.marketName ? <p>{view.marketName}</p> : null}
       {showAttribution ? (
         <p className="text-muted-foreground">
-          {view.source ? (
-            <SourceValue source={view.source} sourceUrl={view.sourceUrl} />
-          ) : null}
+          {view.source}
           {view.source && view.release ? " · " : null}
           {view.release}
         </p>
@@ -161,6 +261,7 @@ export function PayBySpecialty({
   workerPayBySpecialty?: readonly WorkerSalarySpecialtyPublicPay[];
 }) {
   const rows = pay?.salaries ?? [];
+  const sections = paySpecialtySections(rows, workerPayBySpecialty);
   const label = pay?.profession.name || professionLabel;
 
   return (
@@ -176,50 +277,26 @@ export function PayBySpecialty({
           lookup={localBenchmark}
           professionLabel={label}
         />
-        {rows.length === 0 ? (
+        {sections.length === 0 ? (
           <p className="text-muted-foreground">
             No approved pay data yet for this profession.
           </p>
         ) : (
-          rows.map((salary, index) => (
+          sections.map((section, index) => (
             <div
-              key={salary.id}
+              key={section.slug ?? "general-unspecified"}
               className={
                 index === 0
                   ? "space-y-1"
                   : "space-y-1 border-t border-foreground/10 pt-4"
               }
             >
-              <p className="font-medium">{specialtyLabel(salary.specialty)}</p>
-              <p className="text-muted-foreground">Employer posted pay</p>
-              <Field
-                label="Hourly"
-                value={`${formatHourly(salary.hourlyMin)} – ${formatHourly(salary.hourlyMax)}`}
-              />
-              <Field
-                label="Range midpoint"
-                value={formatHourly(salary.hourlyMid)}
-              />
-              {salary.annual != null && Number.isFinite(salary.annual) ? (
-                <Field label="Annual" value={formatAnnual(salary.annual)} />
-              ) : null}
-              <Field
-                label="Source"
-                value={
-                  <SourceValue
-                    source={salary.source}
-                    sourceUrl={salary.sourceUrl}
-                  />
-                }
-              />
-              <Field
-                label="Effective"
-                value={salary.effectiveDate ?? "—"}
-              />
+              <p className="font-medium">{section.label}</p>
+              <EmployerPostedPay salaries={section.salaries} />
               <WorkerReportedPay
                 display={workerSalaryPublicDisplayForSpecialty(
                   workerPayBySpecialty,
-                  salary.specialty?.slug ?? null,
+                  section.slug,
                 )}
               />
             </div>

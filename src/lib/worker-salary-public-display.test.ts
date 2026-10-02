@@ -333,6 +333,26 @@ test("specialty lookup does not fall back to another specialty or the unspecifie
   assert.deepEqual(missing, { state: "none" });
 });
 
+test("public projection keeps a specialty display name", () => {
+  const [projected] = toWorkerSalarySpecialtyPublicPay([
+    {
+      specialtySlug: "intensive-care",
+      specialtyName: " Intensive Care ",
+      ...aggregate({ hourlyCount: 5, hourlyMedian: 60, annualCount: 0 }),
+    },
+  ]);
+  assert.equal(projected?.specialtyName, "Intensive Care");
+  assert.equal(projected?.specialtySlug, "intensive-care");
+  const [blank] = toWorkerSalarySpecialtyPublicPay([
+    {
+      specialtySlug: "emergency-department",
+      specialtyName: " ",
+      ...aggregate({ hourlyCount: 1, hourlyMedian: 40, annualCount: 0 }),
+    },
+  ]);
+  assert.equal(blank?.specialtyName, undefined);
+});
+
 test("public projection drops mean, min, and max", () => {
   const [projected] = toWorkerSalarySpecialtyPublicPay([
     {
