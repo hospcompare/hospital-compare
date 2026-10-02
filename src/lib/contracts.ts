@@ -323,6 +323,95 @@ export const salaryIngestSchema = z
     }
   });
 
+const optionalWorkerPay = (precision: number, scale: number) =>
+  salaryDecimalSchema(precision, scale).nullable().optional();
+
+/**
+ * Public worker compensation submission.
+ * Strict so callers cannot send moderationStatus or any other server-owned field.
+ * Status is always pending on insert.
+ * Hourly and annual amounts are independent. At least one is required.
+ * Differentials are hourly add-ons and require an hourly base rate.
+ * Bounds match the Decimal columns. They are storage limits, not wage caps.
+ */
+export const workerSalaryReportSubmitSchema = z
+  .object({
+    hospitalCcn: z.string().trim().min(1),
+    professionSlug: z.string().trim().min(1),
+    specialtySlug: z
+      .union([z.string(), z.null()])
+      .optional()
+      .transform((value) => {
+        if (value == null) return null;
+        const trimmed = value.trim();
+        return trimmed.length === 0 ? null : trimmed;
+      }),
+    employmentType: employmentTypeSchema,
+    hourlyRate: optionalWorkerPay(8, 2),
+    shiftDifferential: optionalWorkerPay(8, 2),
+    otherHourlyDifferential: optionalWorkerPay(8, 2),
+    annualSalary: optionalWorkerPay(12, 2),
+    experienceMonth: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional()
+      .nullable(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const hourlyRate = data.hourlyRate ?? null;
+    const annualSalary = data.annualSalary ?? null;
+
+    if (hourlyRate == null && annualSalary == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["hourlyRate"],
+        message: "hourlyRate or annualSalary is required",
+      });
+    }
+
+    if (data.shiftDifferential != null && hourlyRate == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["shiftDifferential"],
+        message: "shiftDifferential requires hourlyRate",
+      });
+    }
+
+    if (data.otherHourlyDifferential != null && hourlyRate == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["otherHourlyDifferential"],
+        message: "otherHourlyDifferential requires hourlyRate",
+      });
+    }
+  });
+
+export const workerSalaryStatisticSchema = z.object({
+  count: z.number().int().nonnegative(),
+  median: z.number().nullable(),
+  mean: z.number().nullable(),
+  min: z.number().nullable(),
+  max: z.number().nullable(),
+});
+
+/**
+ * Approved-only worker pay statistics.
+ * specialtySlug is null when the aggregate is profession-wide.
+ * A non-null specialtySlug includes only that specialty.
+ * hourly and annual are separate samples. They are not converted.
+ * This object is the internal calculation. It does not encode a public
+ * anonymity threshold. The repository does not define one for worker pay.
+ */
+export const workerSalaryAggregateSchema = z.object({
+  hospitalCcn: z.string(),
+  professionSlug: z.string(),
+  specialtySlug: z.string().nullable(),
+  approvedReportCount: z.number().int().nonnegative(),
+  hourly: workerSalaryStatisticSchema,
+  annual: workerSalaryStatisticSchema,
+});
+
 export const workplaceMetricAggregateSchema = z.object({
   slug: z.string(),
   label: z.string(),
@@ -428,6 +517,9 @@ export type SalaryMetric = z.infer<typeof salarySchema>;
 export type ColIndexMetric = z.infer<typeof colIndexSchema>;
 export type ReviewAggregate = z.infer<typeof reviewAggregateSchema>;
 export type WorkplaceReportSubmit = z.infer<typeof workplaceReportSubmitSchema>;
+export type WorkerSalaryReportSubmit = z.infer<typeof workerSalaryReportSubmitSchema>;
+export type WorkerSalaryStatistic = z.infer<typeof workerSalaryStatisticSchema>;
+export type WorkerSalaryAggregate = z.infer<typeof workerSalaryAggregateSchema>;
 export type WorkplaceMetricAggregate = z.infer<typeof workplaceMetricAggregateSchema>;
 export type WorkplaceAggregate = z.infer<typeof workplaceAggregateSchema>;
 export type ProfessionIdentity = z.infer<typeof professionIdentitySchema>;

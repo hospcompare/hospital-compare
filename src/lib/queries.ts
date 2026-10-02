@@ -9,9 +9,12 @@ import type {
   ReviewAggregate,
   ReviewPublic,
   SalaryMetric,
+  WorkerSalaryAggregate,
+  WorkerSalaryReportSubmit,
   WorkplaceAggregate,
   WorkplaceMetricAggregate,
 } from "@/lib/contracts";
+import { summarizePayValues } from "@/lib/worker-salary-stats";
 
 function toNumber(value: unknown): number | null {
   if (value == null) return null;
@@ -1005,5 +1008,214 @@ export async function getLocalPayBenchmarkForHospitalProfession({
           effectiveDate: formatDate(row.effectiveDate),
         }
       : null,
+  };
+}
+
+type WorkerSalarySubmitResult =
+  | {
+      ok: true;
+      reportId: string;
+      moderationStatus: "pending";
+    }
+  | {
+      ok: false;
+      error: string;
+      status: 400 | 404;
+    };
+
+/**
+ * Stores one worker compensation report as pending.
+ * The caller cannot choose moderationStatus. Approved rows are a later moderation step.
+ * Hospital, profession, and specialty are resolved here. There is no specialty or profession fallback.
+ */
+export async function submitWorkerSalaryReport(
+  input: WorkerSalaryReportSubmit,
+): Promise<WorkerSalarySubmitResult> {
+  const hospital = await prisma.hospital.findUnique({
+    where: { ccn: input.hospitalCcn },
+    select: { ccn: true },
+  });
+
+  if (!hospital) {
+    return { ok: false, status: 404, error: "Unknown hospital CCN" };
+  }
+
+  const profession = await prisma.profession.findUnique({
+    where: { slug: input.professionSlug },
+    select: { id: true, active: true },
+  });
+
+  if (!profession) {
+    return { ok: false, status: 404, error: "Unknown profession" };
+  }
+
+  if (!profession.active) {
+    return { ok: false, status: 400, error: "Profession is not active" };
+  }
+
+  let specialtyId: string | null = null;
+
+  if (input.specialtySlug) {
+    const matches = await prisma.specialty.findMany({
+      where: { slug: input.specialtySlug },
+      select: { id: true, professionId: true, active: true },
+    });
+    const forProfession = matches.find(
+      (specialty) => specialty.professionId === profession.id,
+    );
+
+    if (!forProfession) {
+      if (matches.length > 0) {
+        return {
+          ok: false,
+          status: 400,
+          error: "Specialty does not belong to the supplied profession",
+        };
+      }
+
+      return { ok: false, status: 404, error: "Unknown specialty" };
+    }
+
+    if (!forProfession.active) {
+      return { ok: false, status: 400, error: "Specialty is not active" };
+    }
+
+    specialtyId = forProfession.id;
+  }
+
+  const experienceDate = input.experienceMonth
+    ? new Date(`${input.experienceMonth}-01T00:00:00.000Z`)
+    : null;
+
+  const report = await prisma.workerSalaryReport.create({
+    data: {
+      hospitalCcn: hospital.ccn,
+      professionId: profession.id,
+      specialtyId,
+      employmentType: input.employmentType,
+      hourlyRate: input.hourlyRate ?? null,
+      shiftDifferential: input.shiftDifferential ?? null,
+      otherHourlyDifferential: input.otherHourlyDifferential ?? null,
+      annualSalary: input.annualSalary ?? null,
+      experienceDate,
+      moderationStatus: "pending",
+      fraudRiskScore: null,
+    },
+    select: { id: true, moderationStatus: true },
+  });
+
+  if (report.moderationStatus !== "pending") {
+    await prisma.workerSalaryReport.delete({ where: { id: report.id } });
+    return {
+      ok: false,
+      status: 400,
+      error: "Worker salary report was not stored as pending",
+    };
+  }
+
+  return {
+    ok: true,
+    reportId: report.id,
+    moderationStatus: "pending",
+  };
+}
+
+/**
+ * Internal approved-only aggregate for one hospital and profession.
+ *
+ * specialtySlug, when set, keeps only that specialty. Unspecified reports
+ * (null specialty) and other specialties are excluded. There is no fallback
+ * to another specialty or to the profession-wide set.
+ * When specialtySlug is omitted, every approved report for the profession
+ * is included, including specialty-specific and unspecified rows.
+ * Professions are never combined.
+ *
+ * Hourly statistics use hourlyRate only. Annual statistics use annualSalary only.
+ * Differentials are stored on the report and are not added into either sample.
+ * Pending, flagged, and rejected rows are excluded.
+ *
+ * This is the calculation used for testing and later display work.
+ * Public suppression is separate. This repository does not define an anonymity
+ * threshold or grading rule for worker-reported pay, so none is applied here.
+ * Returns null when the hospital does not exist, the profession does not exist
+ * or is inactive, or the specialty is not an active specialty of that profession.
+ */
+export async function getWorkerSalaryAggregate({
+  hospitalCcn,
+  professionSlug,
+  specialtySlug,
+}: {
+  hospitalCcn: string;
+  professionSlug: string;
+  specialtySlug?: string | null;
+}): Promise<WorkerSalaryAggregate | null> {
+  const hospital = await prisma.hospital.findUnique({
+    where: { ccn: hospitalCcn },
+    select: { ccn: true },
+  });
+
+  if (!hospital) {
+    return null;
+  }
+
+  const profession = await prisma.profession.findUnique({
+    where: { slug: professionSlug },
+    select: { id: true, slug: true, active: true },
+  });
+
+  if (!profession || !profession.active) {
+    return null;
+  }
+
+  const requestedSpecialty = specialtySlug?.trim() || null;
+  let specialtyId: string | null = null;
+
+  if (requestedSpecialty) {
+    const specialty = await prisma.specialty.findFirst({
+      where: {
+        slug: requestedSpecialty,
+        professionId: profession.id,
+        active: true,
+      },
+      select: { id: true, slug: true },
+    });
+
+    if (!specialty) {
+      return null;
+    }
+
+    specialtyId = specialty.id;
+  }
+
+  const reports = await prisma.workerSalaryReport.findMany({
+    where: {
+      hospitalCcn: hospital.ccn,
+      professionId: profession.id,
+      moderationStatus: "approved",
+      ...(requestedSpecialty ? { specialtyId } : {}),
+    },
+    select: {
+      hourlyRate: true,
+      annualSalary: true,
+    },
+  });
+
+  const hourlyValues: number[] = [];
+  const annualValues: number[] = [];
+
+  for (const report of reports) {
+    const hourly = toNumber(report.hourlyRate);
+    const annual = toNumber(report.annualSalary);
+    if (hourly != null) hourlyValues.push(hourly);
+    if (annual != null) annualValues.push(annual);
+  }
+
+  return {
+    hospitalCcn: hospital.ccn,
+    professionSlug: profession.slug,
+    specialtySlug: requestedSpecialty,
+    approvedReportCount: reports.length,
+    hourly: summarizePayValues(hourlyValues),
+    annual: summarizePayValues(annualValues),
   };
 }
