@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { WorkerPayFields } from "@/components/worker-pay-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ReviewSubmit } from "@/lib/contracts";
-
-const employmentOptions = [
-  { value: "travel", label: "Travel" },
-  { value: "staff", label: "Staff" },
-  { value: "per_diem", label: "Per diem" },
-  { value: "contract", label: "Local contract" },
-  { value: "unknown", label: "Prefer not to say" },
-] as const;
+import { employmentTypeOptions } from "@/lib/employment-type-options";
+import {
+  initialWorkerPayFormState,
+  submitReviewWithOptionalPay,
+  type ContributionSubmitStatus,
+  type WorkerPayFormState,
+} from "@/lib/worker-pay-form";
 
 const scoreFields = [
   { key: "overallScore", label: "Overall" },
@@ -25,50 +25,56 @@ const scoreFields = [
 
 type ScoreKey = (typeof scoreFields)[number]["key"];
 
-export function ReviewForm({ hospitalCcn }: { hospitalCcn: string }) {
+export function ReviewForm({
+  hospitalCcn,
+  professionSlug,
+}: {
+  hospitalCcn: string;
+  professionSlug: string;
+}) {
   const [body, setBody] = useState("");
   const [unit, setUnit] = useState("");
   const [employmentType, setEmploymentType] =
     useState<ReviewSubmit["employmentType"]>("travel");
   const [scores, setScores] = useState<Partial<Record<ScoreKey, number>>>({});
-  const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [pay, setPay] = useState<WorkerPayFormState>(() =>
+    initialWorkerPayFormState(professionSlug),
+  );
+  const [status, setStatus] = useState<
+    "idle" | "saving" | ContributionSubmitStatus
+  >("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setStatus("saving");
     setMessage(null);
-    try {
-      const payload: ReviewSubmit = {
-        hospitalCcn,
-        body,
-        employmentType,
-        unit: unit || null,
-        overallScore: scores.overallScore ?? null,
-        staffingScore: scores.staffingScore ?? null,
-        managementScore: scores.managementScore ?? null,
-        payScore: scores.payScore ?? null,
-        wlbScore: scores.wlbScore ?? null,
-      };
-      const response = await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = (await response.json()) as { message?: string; error?: string };
-      if (!response.ok) {
-        throw new Error(data.error ?? "Submit failed");
-      }
-      setStatus("done");
-      setMessage(data.message ?? "Stored as pending.");
+    const result = await submitReviewWithOptionalPay({
+      hospitalCcn,
+      body,
+      employmentType,
+      unit,
+      scores,
+      pay,
+    });
+    setStatus(result.status);
+    setMessage(result.message);
+    if (result.reviewSaved) {
       setBody("");
       setUnit("");
       setScores({});
-    } catch (error) {
-      setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Submit failed");
+    }
+    if (result.paySaved) {
+      setPay(initialWorkerPayFormState(professionSlug));
     }
   }
+
+  const messageClass =
+    status === "error"
+      ? "text-sm text-destructive"
+      : status === "partial"
+        ? "text-sm text-amber-800"
+        : "text-sm text-teal-800";
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -83,7 +89,7 @@ export function ReviewForm({ hospitalCcn }: { hospitalCcn: string }) {
               setEmploymentType(event.target.value as ReviewSubmit["employmentType"])
             }
           >
-            {employmentOptions.map((option) => (
+            {employmentTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -146,8 +152,22 @@ export function ReviewForm({ hospitalCcn }: { hospitalCcn: string }) {
         </p>
       </div>
 
+      <fieldset className="space-y-3 rounded-lg border border-input p-3">
+        <legend className="px-1 text-sm font-medium">
+          Pay at this hospital (optional)
+        </legend>
+        <p className="text-xs text-muted-foreground">
+          Leave hourly base pay blank to submit your review without a pay report.
+        </p>
+        <WorkerPayFields
+          idPrefix="review-pay"
+          values={pay}
+          onChange={setPay}
+        />
+      </fieldset>
+
       {message ? (
-        <p className={status === "error" ? "text-sm text-destructive" : "text-sm text-teal-800"}>
+        <p role="status" className={messageClass}>
           {message}
         </p>
       ) : null}
