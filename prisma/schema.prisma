@@ -77,12 +77,13 @@ model Hospital {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  facts             HospitalFact[]
-  salaries          Salary[]
-  reviews           Review[]
-  workplaceReports  WorkplaceReport[]
-  qualitySnapshots  CmsQualitySnapshot[]
-  countyResolutions HospitalCountyResolution[]
+  facts               HospitalFact[]
+  salaries            Salary[]
+  reviews             Review[]
+  workplaceReports    WorkplaceReport[]
+  workerSalaryReports WorkerSalaryReport[]
+  qualitySnapshots    CmsQualitySnapshot[]
+  countyResolutions   HospitalCountyResolution[]
 
   @@index([name])
   @@index([state, city])
@@ -270,10 +271,11 @@ model Profession {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  specialties        Specialty[]
-  workplaceReports   WorkplaceReport[]
-  salaries           Salary[]
-  localPayBenchmarks LocalPayBenchmark[]
+  specialties         Specialty[]
+  workplaceReports    WorkplaceReport[]
+  workerSalaryReports WorkerSalaryReport[]
+  salaries            Salary[]
+  localPayBenchmarks  LocalPayBenchmark[]
 
   @@index([active, sortOrder])
   @@map("professions")
@@ -293,9 +295,10 @@ model Specialty {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  profession       Profession        @relation(fields: [professionId], references: [id], onDelete: Cascade)
-  workplaceReports WorkplaceReport[]
-  salaries         Salary[]
+  profession          Profession           @relation(fields: [professionId], references: [id], onDelete: Cascade)
+  workplaceReports    WorkplaceReport[]
+  workerSalaryReports WorkerSalaryReport[]
+  salaries            Salary[]
 
   @@unique([professionId, slug])
   @@index([professionId, active, sortOrder])
@@ -458,4 +461,45 @@ model WorkplaceObservation {
   @@unique([reportId, metricId])
   @@index([metricId])
   @@map("workplace_observations")
+}
+
+/// Worker-reported compensation for one hospital and profession.
+/// Optional specialty scope matches WorkplaceReport: null means unspecified.
+/// This is not Salary. Salary stores sourced employer-posted or reference ranges
+/// (RecordStatus, source, hourly min/max). This is not WorkplaceReport. That
+/// model stores workplace experience, not pay.
+/// Rows are created pending. Approved-only reads are the public aggregate path.
+/// hourlyRate and annualSalary are independent. Neither is derived from the other.
+/// Nonnegative compensation is enforced in the migration CHECKs and in the submit schema.
+/// At least one of hourlyRate or annualSalary is required. Differentials require hourlyRate.
+model WorkerSalaryReport {
+  id                      String           @id @default(cuid())
+  hospitalCcn             String           @map("hospital_ccn")
+  professionId            String           @map("profession_id")
+  specialtyId             String?          @map("specialty_id")
+  employmentType          EmploymentType   @map("employment_type")
+  /// Base hourly rate. Null only when the worker reported annual pay and no hourly rate.
+  hourlyRate              Decimal?         @map("hourly_rate") @db.Decimal(8, 2)
+  /// Recurring shift differential, hourly. Not added into hourlyRate.
+  shiftDifferential       Decimal?         @map("shift_differential") @db.Decimal(8, 2)
+  /// Other recurring hourly differential. Not added into hourlyRate.
+  otherHourlyDifferential Decimal?         @map("other_hourly_differential") @db.Decimal(8, 2)
+  /// Annual salary when reported. Not derived from hourlyRate.
+  annualSalary            Decimal?         @map("annual_salary") @db.Decimal(12, 2)
+  /// Coarse month of the pay context, stored as the first calendar day of that month.
+  experienceDate          DateTime?        @map("experience_date") @db.Date
+  moderationStatus        ModerationStatus @default(pending) @map("moderation_status")
+  fraudRiskScore          Float?           @map("fraud_risk_score")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+
+  hospital   Hospital   @relation(fields: [hospitalCcn], references: [ccn], onDelete: Cascade)
+  profession Profession @relation(fields: [professionId], references: [id])
+  specialty  Specialty? @relation(fields: [specialtyId], references: [id])
+
+  @@index([hospitalCcn, moderationStatus])
+  @@index([hospitalCcn, professionId, moderationStatus])
+  @@index([hospitalCcn, professionId, specialtyId, moderationStatus])
+  @@index([professionId, specialtyId])
+  @@map("worker_salary_reports")
 }
