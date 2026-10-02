@@ -4,8 +4,9 @@ import { getWorkerSalaryAggregate } from "@/lib/queries";
 export const dynamic = "force-dynamic";
 
 /**
- * Approved-only worker pay statistics for later display.
- * No anonymity threshold is applied. The repository does not define one.
+ * Approved-only worker pay statistics.
+ * Returns the raw aggregate, including samples below the public display
+ * minimum. Public pages apply the display policy before rendering.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
