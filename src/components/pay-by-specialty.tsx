@@ -13,6 +13,14 @@ import type {
   ProfessionSalary,
 } from "@/lib/contracts";
 import { presentLocalPayBenchmark } from "@/lib/local-pay-benchmark-display";
+import {
+  formatWorkerSalaryPublicFigure,
+  formatWorkerSalaryPublicReportCount,
+  workerSalaryPublicDisplayForSpecialty,
+  workerSalaryPublicUnavailableMessage,
+  type WorkerSalaryPublicDisplay,
+  type WorkerSalarySpecialtyPublicPay,
+} from "@/lib/worker-salary-public-display";
 
 const UNSPECIFIED_SPECIALTY = "General / Unspecified";
 
@@ -76,6 +84,35 @@ function SourceValue({
   );
 }
 
+function WorkerReportedPay({
+  display,
+}: {
+  display: WorkerSalaryPublicDisplay;
+}) {
+  const unavailable = workerSalaryPublicUnavailableMessage(display);
+
+  return (
+    <section
+      aria-label="Worker reported"
+      className="space-y-1 border-t border-foreground/10 pt-3"
+    >
+      <p className="font-medium">Worker reported</p>
+      {display.state === "eligible" ? (
+        <>
+          <p className="text-base font-semibold">
+            {formatWorkerSalaryPublicFigure(display)}
+          </p>
+          <p className="text-muted-foreground">
+            {formatWorkerSalaryPublicReportCount(display.count)}
+          </p>
+        </>
+      ) : (
+        <p className="text-muted-foreground">{unavailable}</p>
+      )}
+    </section>
+  );
+}
+
 function LocalMarketBenchmark({
   lookup,
   professionLabel,
@@ -116,10 +153,12 @@ export function PayBySpecialty({
   pay,
   professionLabel,
   localBenchmark,
+  workerPayBySpecialty = [],
 }: {
   pay: HospitalProfessionSalaries | null;
   professionLabel: string;
   localBenchmark: LocalPayBenchmarkLookup | null;
+  workerPayBySpecialty?: readonly WorkerSalarySpecialtyPublicPay[];
 }) {
   const rows = pay?.salaries ?? [];
   const label = pay?.profession.name || professionLabel;
@@ -152,6 +191,7 @@ export function PayBySpecialty({
               }
             >
               <p className="font-medium">{specialtyLabel(salary.specialty)}</p>
+              <p className="text-muted-foreground">Employer posted pay</p>
               <Field
                 label="Hourly"
                 value={`${formatHourly(salary.hourlyMin)} – ${formatHourly(salary.hourlyMax)}`}
@@ -175,6 +215,12 @@ export function PayBySpecialty({
               <Field
                 label="Effective"
                 value={salary.effectiveDate ?? "—"}
+              />
+              <WorkerReportedPay
+                display={workerSalaryPublicDisplayForSpecialty(
+                  workerPayBySpecialty,
+                  salary.specialty?.slug ?? null,
+                )}
               />
             </div>
           ))

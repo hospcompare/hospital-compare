@@ -14,7 +14,11 @@ import type {
   WorkplaceAggregate,
   WorkplaceMetricAggregate,
 } from "@/lib/contracts";
-import { summarizePayValues } from "@/lib/worker-salary-stats";
+import {
+  aggregateWorkerSalarySamplesBySpecialty,
+  summarizePayValues,
+  type WorkerSalarySpecialtyAggregate,
+} from "@/lib/worker-salary-stats";
 
 function toNumber(value: unknown): number | null {
   if (value == null) return null;
@@ -1134,9 +1138,9 @@ export async function submitWorkerSalaryReport(
  * Differentials are stored on the report and are not added into either sample.
  * Pending, flagged, and rejected rows are excluded.
  *
- * This is the calculation used for testing and later display work.
- * Public suppression is separate. This repository does not define an anonymity
- * threshold or grading rule for worker-reported pay, so none is applied here.
+ * This is the raw calculation used for testing and internal reads.
+ * Public display eligibility is applied separately. This function does not
+ * suppress a small sample, and it does not grade the result.
  * Returns null when the hospital does not exist, the profession does not exist
  * or is inactive, or the specialty is not an active specialty of that profession.
  */
@@ -1217,5 +1221,74 @@ export async function getWorkerSalaryAggregate({
     approvedReportCount: reports.length,
     hourly: summarizePayValues(hourlyValues),
     annual: summarizePayValues(annualValues),
+  };
+}
+
+/**
+ * Approved worker-pay aggregates for every specialty at one hospital and profession.
+ *
+ * One query loads the approved rows. Each specialty is summarized on its own.
+ * A null specialtySlug is only reports with no specialty. It is not a
+ * profession-wide total, and specialties are not filled in from each other.
+ * Pending, flagged, and rejected rows are excluded. Differentials are not read.
+ *
+ * Returns null when the hospital does not exist, or the profession does not
+ * exist or is inactive. An empty specialties list means there are no approved
+ * reports for that hospital and profession.
+ */
+export async function getWorkerSalaryAggregatesBySpecialty({
+  hospitalCcn,
+  professionSlug,
+}: {
+  hospitalCcn: string;
+  professionSlug: string;
+}): Promise<{
+  hospitalCcn: string;
+  professionSlug: string;
+  specialties: WorkerSalarySpecialtyAggregate[];
+} | null> {
+  const hospital = await prisma.hospital.findUnique({
+    where: { ccn: hospitalCcn },
+    select: { ccn: true },
+  });
+
+  if (!hospital) {
+    return null;
+  }
+
+  const profession = await prisma.profession.findUnique({
+    where: { slug: professionSlug },
+    select: { id: true, slug: true, active: true },
+  });
+
+  if (!profession || !profession.active) {
+    return null;
+  }
+
+  const reports = await prisma.workerSalaryReport.findMany({
+    where: {
+      hospitalCcn: hospital.ccn,
+      professionId: profession.id,
+      moderationStatus: "approved",
+    },
+    select: {
+      hourlyRate: true,
+      annualSalary: true,
+      specialty: {
+        select: { slug: true },
+      },
+    },
+  });
+
+  return {
+    hospitalCcn: hospital.ccn,
+    professionSlug: profession.slug,
+    specialties: aggregateWorkerSalarySamplesBySpecialty(
+      reports.map((report) => ({
+        specialtySlug: report.specialty?.slug ?? null,
+        hourlyRate: toNumber(report.hourlyRate),
+        annualSalary: toNumber(report.annualSalary),
+      })),
+    ),
   };
 }

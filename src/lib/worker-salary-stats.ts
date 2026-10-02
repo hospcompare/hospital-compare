@@ -1,5 +1,23 @@
 import type { WorkerSalaryStatistic } from "@/lib/contracts";
 
+/** One approved report reduced to the values the aggregate is allowed to use. */
+export type WorkerSalaryReportSample = {
+  specialtySlug: string | null;
+  hourlyRate: number | null;
+  annualSalary: number | null;
+};
+
+/**
+ * Approved worker-pay aggregate for one specialty.
+ * specialtySlug null is the unspecified bucket only. It is not a profession-wide rollup.
+ */
+export type WorkerSalarySpecialtyAggregate = {
+  specialtySlug: string | null;
+  approvedReportCount: number;
+  hourly: WorkerSalaryStatistic;
+  annual: WorkerSalaryStatistic;
+};
+
 /**
  * Median of a sample.
  * Odd count: the middle value after sorting.
@@ -46,4 +64,54 @@ export function summarizePayValues(values: number[]): WorkerSalaryStatistic {
     min,
     max,
   };
+}
+
+function finitePay(value: number | null): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * Groups already-filtered approved samples by specialty and summarizes each
+ * group with the same hourly and annual math as a single-specialty aggregate.
+ * Callers must limit the samples to one hospital and one profession first.
+ * A null specialty stays in its own group. Other specialties are not merged in.
+ */
+export function aggregateWorkerSalarySamplesBySpecialty(
+  reports: readonly WorkerSalaryReportSample[],
+): WorkerSalarySpecialtyAggregate[] {
+  const groups = new Map<
+    string | null,
+    {
+      specialtySlug: string | null;
+      count: number;
+      hourly: number[];
+      annual: number[];
+    }
+  >();
+
+  for (const report of reports) {
+    const specialtySlug = report.specialtySlug;
+    let group = groups.get(specialtySlug);
+    if (!group) {
+      group = { specialtySlug, count: 0, hourly: [], annual: [] };
+      groups.set(specialtySlug, group);
+    }
+    group.count += 1;
+    if (finitePay(report.hourlyRate)) group.hourly.push(report.hourlyRate);
+    if (finitePay(report.annualSalary)) group.annual.push(report.annualSalary);
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      specialtySlug: group.specialtySlug,
+      approvedReportCount: group.count,
+      hourly: summarizePayValues(group.hourly),
+      annual: summarizePayValues(group.annual),
+    }))
+    .sort((left, right) => {
+      if (left.specialtySlug == null && right.specialtySlug == null) return 0;
+      if (left.specialtySlug == null) return 1;
+      if (right.specialtySlug == null) return -1;
+      return left.specialtySlug.localeCompare(right.specialtySlug);
+    });
 }

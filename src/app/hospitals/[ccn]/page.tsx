@@ -15,9 +15,11 @@ import {
   getApprovedSalariesForHospitalProfession,
   getHospitalDetail,
   getLocalPayBenchmarkForHospitalProfession,
+  getWorkerSalaryAggregatesBySpecialty,
   getWorkplaceAggregate,
   listApprovedReviews,
 } from "@/lib/queries";
+import { toWorkerSalarySpecialtyPublicPay } from "@/lib/worker-salary-public-display";
 import { formatScore } from "@/lib/compare";
 import { WorkplaceReportForm } from "@/components/workplace-report-form";
 import {
@@ -57,21 +59,26 @@ const selectedProfession = isEnabledProfession(profession)
 const professionOption = getProfessionOption(selectedProfession);
   const hospital = await getHospitalDetail(decoded);
   if (!hospital) notFound();
-  const [reviews, professionPay, localBenchmark, workplace] = await Promise.all([
-    listApprovedReviews(decoded),
-    getApprovedSalariesForHospitalProfession({
-      hospitalCcn: decoded,
-      professionSlug: selectedProfession,
-    }),
-    getLocalPayBenchmarkForHospitalProfession({
-      hospitalCcn: decoded,
-      professionSlug: selectedProfession,
-    }),
-    getWorkplaceAggregate({
-      hospitalCcn: decoded,
-      professionSlug: selectedProfession,
-    }),
-  ]);
+  const [reviews, professionPay, localBenchmark, workplace, workerSalaryAggregates] =
+    await Promise.all([
+      listApprovedReviews(decoded),
+      getApprovedSalariesForHospitalProfession({
+        hospitalCcn: decoded,
+        professionSlug: selectedProfession,
+      }),
+      getLocalPayBenchmarkForHospitalProfession({
+        hospitalCcn: decoded,
+        professionSlug: selectedProfession,
+      }),
+      getWorkplaceAggregate({
+        hospitalCcn: decoded,
+        professionSlug: selectedProfession,
+      }),
+      getWorkerSalaryAggregatesBySpecialty({
+        hospitalCcn: decoded,
+        professionSlug: selectedProfession,
+      }),
+    ]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10 sm:px-6">
@@ -211,6 +218,9 @@ const professionOption = getProfessionOption(selectedProfession);
           pay={professionPay}
           professionLabel={professionOption?.label ?? "this profession"}
           localBenchmark={localBenchmark}
+          workerPayBySpecialty={toWorkerSalarySpecialtyPublicPay(
+            workerSalaryAggregates?.specialties,
+          )}
         />
         <Card>
           <CardHeader>

@@ -400,8 +400,8 @@ export const workerSalaryStatisticSchema = z.object({
  * specialtySlug is null when the aggregate is profession-wide.
  * A non-null specialtySlug includes only that specialty.
  * hourly and annual are separate samples. They are not converted.
- * This object is the internal calculation. It does not encode a public
- * anonymity threshold. The repository does not define one for worker pay.
+ * This object is the internal calculation. Public display eligibility is a
+ * separate rule and is not encoded here.
  */
 export const workerSalaryAggregateSchema = z.object({
   hospitalCcn: z.string(),
