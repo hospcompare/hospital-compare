@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { WorkplaceReportSubmit } from "@/lib/contracts";
+import { getSpecialtiesForProfession } from "@/lib/profession-specialties";
 
 const employmentOptions = [
   { value: "travel", label: "Travel" },
@@ -16,23 +17,11 @@ const employmentOptions = [
 
 const rnSpecialties = [
   { value: "", label: "No specialty selected" },
-  { value: "emergency-department", label: "Emergency Department" },
-  { value: "intensive-care", label: "Intensive Care" },
-  { value: "medical-surgical", label: "Medical-Surgical" },
-  { value: "telemetry", label: "Telemetry" },
-  { value: "progressive-care", label: "Progressive Care" },
-  { value: "operating-room", label: "Operating Room" },
-  { value: "post-anesthesia-care", label: "Post-Anesthesia Care Unit" },
-  { value: "labor-delivery", label: "Labor & Delivery" },
-  { value: "mother-baby", label: "Mother-Baby/Postpartum" },
-  { value: "neonatal-intensive-care", label: "Neonatal Intensive Care" },
-  { value: "pediatrics", label: "Pediatrics" },
-  { value: "pediatric-intensive-care", label: "Pediatric Intensive Care" },
-  { value: "oncology", label: "Oncology" },
-  { value: "step-down", label: "Step-Down" },
-  { value: "float-pool", label: "Float Pool" },
-  { value: "behavioral-health", label: "Behavioral Health" },
-] as const;
+  ...getSpecialtiesForProfession("registered-nurse").map((specialty) => ({
+    value: specialty.slug,
+    label: specialty.label,
+  })),
+];
 
 type EmploymentType = WorkplaceReportSubmit["employmentType"];
 
